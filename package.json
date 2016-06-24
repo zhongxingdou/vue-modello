@@ -1,0 +1,30 @@
+{
+  "name": "vue-model",
+  "version": "0.0.1",
+  "description": "vue model",
+  "main": "dist/vueModel.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha",
+    "build": "rollup -c build/rollup.config.js",
+    "docs": "gitbook serve",
+    "docsbuild": "bash ./build/update-docs.sh"
+  },
+  "keywords": [
+    "vue",
+    "model"
+  ],
+  "author": "zhongxingdou@gmail.com",
+  "license": "ISC",
+  "devDependencies": {
+    "babel-plugin-syntax-object-rest-spread": "^6.8.0",
+    "babel-plugin-transform-object-rest-spread": "^6.8.0",
+    "babel-preset-es2015-rollup": "^1.1.1",
+    "better-assert": "^1.0.2",
+    "rollup-plugin-babel": "^2.5.0",
+    "should": "^9.0.0",
+    "sinon": "^1.17.4"
+  }
+}
