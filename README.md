@@ -8,7 +8,6 @@ npm install vue-model --save
 ## Usage
 
 ### define model
-
 Student.js
 ```javascript
 export default {
@@ -16,15 +15,18 @@ export default {
   properties: {
     name: {
       label: 'Full name',
-      type: String
+      type: String,
+      defaultValue: ''
     },
     birthday: {
       label: 'Birthday',
-      type: Date
+      type: Date,
+      defaultValue: null
     },
     avatar: {
       label: 'Avatar',
-      type: String
+      type: String,
+      defaultValue: ''
     }
   },
   rules: {
@@ -43,7 +45,7 @@ export default {
     uploadAvatar: function (model, avatarPhoto) {
       let formData = new FormData()
       formData.append('image', avatarPhoto)
-      
+
       $.ajax({
         type: 'post',
         url: '/path/to/uploadPhoto',
