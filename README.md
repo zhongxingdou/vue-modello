@@ -1,8 +1,8 @@
-# Vue-model
+# Vue-modello
 
 ## Install
 ```bash
-npm install vue-model --save
+npm install vue-modello --save
 ```
 
 ## Usage
