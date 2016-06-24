@@ -260,7 +260,7 @@
           }
         }
 
-        Object.assign(this.$options.methods, methods);
+        this.$model = methods;
       }
       // created () {
       //   let options = this.$options.model
