@@ -65,7 +65,7 @@ export default {
 
 ### register model
 ```javascript
-import VueModel from 'vue-model'
+import VueModel from 'vue-modello'
 import Student from './path/to/Student'
 
 VueModel.reg(Student)
@@ -73,7 +73,7 @@ VueModel.reg(Student)
 
 ### use model in Vue component
 ```javascript
-import VueModel from 'vue-model'
+import VueModel from 'vue-modello'
 let StudentModel = VueModel.get('Student')
 
 new Vue({
