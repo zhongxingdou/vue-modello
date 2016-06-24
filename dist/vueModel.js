@@ -176,6 +176,7 @@
 
   var modelStore = {};
   var ModelMan = {
+    Model: Model,
     reg: function reg(model) {
       if (!(model instanceof Model)) {
         return this.reg(new Model(model));
@@ -272,11 +273,6 @@
     }
   };
 
-  var index = {
-    ModelMan: ModelMan,
-    Model: Model
-  };
-
-  return index;
+  return ModelMan;
 
 }));

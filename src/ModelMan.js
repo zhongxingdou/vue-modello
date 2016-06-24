@@ -2,6 +2,7 @@ import Model from './Model'
 
 let modelStore = {}
 export default {
+  Model: Model,
   reg (model) {
     if (!(model instanceof Model)) {
       return this.reg(new Model(model))
