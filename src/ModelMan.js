@@ -47,14 +47,14 @@ export default {
       let methods = {}
       for (let name of actions) {
         let action = model.actions[name]
-        methods[name] = function () {
+        methods[name] = (function () {
           let args = Array.from(arguments)
 
           setModel(this.$get(dataPath))
           args.unshift(Dispatcher)
 
           return action.apply(null, args)
-        }
+        }).bind(this)
       }
 
       this.$model = methods;
