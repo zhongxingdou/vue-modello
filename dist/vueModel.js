@@ -128,47 +128,135 @@
     var properties = modelDesc.properties;
     var rules = modelDesc.rules;
 
+    var binding = modelDesc.binding;
+    var bindingMap = binding ? binding.propMap : {};
 
+    // collect defaults and labels
     var defaultState = {};
     var labels = {};
+
+    var getBindingModel = function getBindingModel() {
+      return binding ? ModelMan.get(binding.modelName) : null;
+    };
 
     for (var prop in properties) {
       var propDesc = properties[prop];
 
-      labels[prop] = propDesc.label;
+      labels[prop] = propDesc.label || '';
 
       var Type = propDesc.type;
       if (propDesc.hasOwnProperty('defaultValue')) {
         defaultState[prop] = propDesc.defaultValue;
-      } else {
+      } else if (!bindingMap.hasOwnProperty(prop)) {
         if (Array.isArray(Type)) {
           defaultState[prop] = [];
         } else {
-          defaultState[prop] = new Type();
+          var value = undefined;
+          switch (Type) {
+            case String:
+              value = '';
+              break;
+            case Number:
+              value = 0;
+              break;
+            case Boolean:
+              value = true;
+              break;
+          }
+          if (value !== undefined) {
+            defaultState[prop] = value;
+          }
         }
       }
     }
 
+    // methods for rule
+    this.getPropRule = function (prop) {
+      var rule = rules ? rules[prop] : undefined;
+
+      var mapProp = bindingMap[prop];
+      if (mapProp) {
+        var bindingModel = getBindingModel();
+        if (bindingModel) {
+          var bindingRule = bindingModel.getPropRule(mapProp);
+          if (bindingRule) {
+            return _extends({}, bindingRule, rule);
+          }
+        }
+      }
+
+      return rule;
+    };
+
+    this.getRules = function () {
+      var _this = this;
+
+      var rules = {};
+      Object.keys(properties).forEach(function (prop) {
+        rules[prop] = _this.getPropRule(prop);
+      });
+      return rules;
+    };
+
+    // methods for label
+    this.getPropLabel = function (prop) {
+      var label = labels[prop];
+      if (label) return label;
+
+      var mapProp = bindingMap[prop];
+      if (mapProp) {
+        var bindingModel = getBindingModel();
+        if (bindingModel) {
+          return bindingModel.getPropLabel(mapProp);
+        }
+      }
+
+      return '';
+    };
+
+    this.getLabels = function () {
+      var _this2 = this;
+
+      return Object.keys(properties).map(function (prop) {
+        return _this2.getPropLabel(prop);
+      });
+    };
+
+    // methods for defaults
+    // priority: self defined > model binding > auto make
+    this.getPropDefaults = function (prop) {
+      var propDesc = properties[prop];
+      if (propDesc.hasOwnProperty('defaultValue')) {
+        return propDesc.defaultValue;
+      }
+
+      var mapProp = bindingMap[prop];
+      if (mapProp) {
+        var bindingModel = getBindingModel();
+        if (bindingModel) {
+          var defaults = bindingModel.getPropDefaults(mapProp);
+          if (defaults !== undefined) return defaults;
+        }
+      }
+
+      if (prop in defaultState) {
+        return defaultState[prop];
+      }
+
+      return undefined;
+    };
+
     this.defaults = function () {
-      return _extends({}, defaultState);
+      var _this3 = this;
+
+      var defaults = {};
+      Object.keys(properties).forEach(function (prop) {
+        defaults[prop] = _this3.getPropDefaults(prop);
+      });
+      return defaults;
     };
 
-    this.getRules = function (prop) {
-      if (prop) {
-        return rules[prop];
-      }
-
-      return _extends({}, rules);
-    };
-
-    this.getLabels = function (prop) {
-      if (prop) {
-        return labels[prop];
-      }
-
-      return _extends({}, labels);
-    };
-
+    // add property member
     this.modelName = modelDesc.modelName;
     this.mutations = modelDesc.mutations;
     this.actions = modelDesc.actions;
@@ -186,6 +274,13 @@
     },
     get: function get(modelName) {
       return modelStore[modelName];
+    },
+    unReg: function unReg(model) {
+      if (model instanceof Model) {
+        delete modelStore[model.modelName];
+      } else if (typeof model === 'string') {
+        delete modelStore[model];
+      }
     },
 
     vueMixin: {
