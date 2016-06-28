@@ -13,6 +13,13 @@ export default {
   get (modelName) {
     return modelStore[modelName]
   },
+  unReg (model) {
+    if (model instanceof Model) {
+      delete modelStore[model.modelName]
+    } else if (typeof model === 'string') {
+      delete modelStore[model]
+    }
+  },
   vueMixin: {
     init () {
       let options = this.$options.model
