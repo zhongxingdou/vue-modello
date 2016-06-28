@@ -1,47 +1,129 @@
+import ModelMan from './ModelMan'
+
 export default class Model {
   constructor (modelDesc) {
     let { properties, rules } = modelDesc
+    let binding = modelDesc.binding
+    let bindingMap = binding ? binding.propMap : {}
 
+    // collect defaults and labels
     let defaultState = {}
     let labels = {}
+
+    let getBindingModel = function () {
+      return binding ? ModelMan.get(binding.modelName) : null
+    }
 
     for (let prop in properties) {
       let propDesc = properties[prop]
 
-      labels[prop] = propDesc.label
+      labels[prop] = propDesc.label || ''
 
       let Type = propDesc.type
       if (propDesc.hasOwnProperty('defaultValue')) {
         defaultState[prop] = propDesc.defaultValue
-      } else {
+      } else if(!bindingMap.hasOwnProperty(prop)){
         if (Array.isArray(Type)) {
           defaultState[prop] = []
         } else {
-          defaultState[prop] = new Type()
+          let value = undefined
+          switch (Type) {
+            case String:
+              value = ''
+              break
+            case Number:
+              value = 0
+              break
+            case Boolean:
+              value = true
+              break
+          }
+          if (value !== undefined) {
+            defaultState[prop] = value
+          }
         }
       }
     }
 
+    // methods for rule
+    this.getPropRule = function (prop) {
+      let rule = rules ? rules[prop] : undefined
+
+      let mapProp = bindingMap[prop]
+      if (mapProp) {
+        let bindingModel = getBindingModel()
+        if (bindingModel) {
+          let bindingRule = bindingModel.getPropRule(mapProp)
+          if (bindingRule) {
+            return { ...bindingRule, ...rule }
+          }
+        }
+      }
+
+      return rule
+    }
+
+    this.getRules = function () {
+      let rules = {}
+      Object.keys(properties).forEach((prop) => {
+        rules[prop] = this.getPropRule(prop)
+      })
+      return rules
+    }
+
+    // methods for label
+    this.getPropLabel = function (prop) {
+      let label = labels[prop]
+      if (label) return label
+
+      let mapProp = bindingMap[prop]
+      if (mapProp) {
+        let bindingModel = getBindingModel()
+        if (bindingModel) {
+          return bindingModel.getPropLabel(mapProp)
+        }
+      }
+
+      return ''
+    }
+
+    this.getLabels = function () {
+      return Object.keys(properties).map((prop) => this.getPropLabel(prop))
+    }
+
+    // methods for defaults
+    // priority: self defined > model binding > auto make
+    this.getPropDefaults = function (prop) {
+      let propDesc = properties[prop]
+      if (propDesc.hasOwnProperty('defaultValue')) {
+        return propDesc.defaultValue
+      }
+
+      let mapProp = bindingMap[prop]
+      if (mapProp) {
+        let bindingModel = getBindingModel()
+        if (bindingModel) {
+          let defaults = bindingModel.getPropDefaults(mapProp)
+          if (defaults !== undefined) return defaults
+        }
+      }
+
+      if (prop in defaultState) {
+        return defaultState[prop]
+      }
+
+      return undefined
+    }
+
     this.defaults = function () {
-      return { ...defaultState }
+      let defaults = {}
+      Object.keys(properties).forEach((prop) => {
+        defaults[prop] = this.getPropDefaults(prop)
+      })
+      return defaults
     }
 
-    this.getRules = function (prop) {
-      if (prop) {
-        return rules[prop]
-      }
-
-      return { ...rules }
-    }
-
-    this.getLabels = function (prop) {
-      if (prop) {
-        return labels[prop]
-      }
-
-      return { ...labels }
-    }
-
+    // add property member
     this.modelName = modelDesc.modelName
     this.mutations = modelDesc.mutations
     this.actions = modelDesc.actions
