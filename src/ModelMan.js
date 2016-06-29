@@ -32,51 +32,51 @@ export default {
 
       let existsDefaultModel = false
       models.forEach((modelOption) => {
-      let { model, actions, dataPath } = modelOption
+        let { model, actions, dataPath } = modelOption
 
-      // 声明在 vue data 中的 model
-      let vueModel = null
-      function setModel (model) {
-        vueModel = model
-      }
-      function getModel (model) {
-        return vueModel
-      }
+        // 声明在 vue data 中的 model
+        let vueModel = null
+        function setModel (model) {
+          vueModel = model
+        }
+        function getModel (model) {
+          return vueModel
+        }
 
-      let Dispatcher = {
-        dispatch (mutation) {
-          let mutations = model.mutations
-          if (mutations.hasOwnProperty(mutation)) {
-            let args = Array.from(arguments)
-            args.shift() // mutation name
-            args.unshift(getModel())
+        let Dispatcher = {
+          dispatch (mutation) {
+            let mutations = model.mutations
+            if (mutations.hasOwnProperty(mutation)) {
+              let args = Array.from(arguments)
+              args.shift() // mutation name
+              args.unshift(getModel())
 
-            return mutations[mutation].apply(null, args)
+              return mutations[mutation].apply(null, args)
+            }
           }
         }
-      }
 
-      // action ({dispatch: Fuction(mutation, ...args)})
-      // convert action as Vue method
-      let methods = {}
-      for (let name of actions) {
-        let action = model.actions[name]
-        methods[name] = (function () {
-          let args = Array.from(arguments)
+        // action ({dispatch: Fuction(mutation, ...args)})
+        // convert action as Vue method
+        let methods = {}
+        for (let name of actions) {
+          let action = model.actions[name]
+          methods[name] = (function () {
+            let args = Array.from(arguments)
 
-          if (dataPath) setModel(this.$get(dataPath))
-          args.unshift(Dispatcher)
+            if (dataPath) setModel(this.$get(dataPath))
+            args.unshift(Dispatcher)
 
-          return action.apply(null, args)
-        }).bind(this)
-      }
+            return action.apply(null, args)
+          }).bind(this)
+        }
 
-      if(modelOption.default && !existsDefaultModel){
-        existsDefaultModel = true
-        this.$model = methods
-      } else {
-        this[model.modelName] = methods
-      }
+        if(modelOption.default && !existsDefaultModel){
+          existsDefaultModel = true
+          this.$model = methods
+        } else {
+          this[model.modelName] = methods
+        }
       })
     }
     // created () {
