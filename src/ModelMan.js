@@ -25,7 +25,14 @@ export default {
       let options = this.$options.model
       if (!options) return
 
-      let { model, actions, dataPath } = options
+      let models = options
+      if (!Array.isArray(options)) {
+        models = [options]
+      }
+
+      let existsDefaultModel = false
+      models.forEach((modelOption) => {
+      let { model, actions, dataPath } = modelOption
 
       // 声明在 vue data 中的 model
       let vueModel = null
@@ -57,14 +64,20 @@ export default {
         methods[name] = (function () {
           let args = Array.from(arguments)
 
-          setModel(this.$get(dataPath))
+          if (dataPath) setModel(this.$get(dataPath))
           args.unshift(Dispatcher)
 
           return action.apply(null, args)
         }).bind(this)
       }
 
-      this.$model = methods;
+      if(modelOption.default && !existsDefaultModel){
+        existsDefaultModel = true
+        this.$model = methods
+      } else {
+        this[model.modelName] = methods
+      }
+      })
     }
     // created () {
     //   let options = this.$options.model

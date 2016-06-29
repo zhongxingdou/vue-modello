@@ -290,74 +290,87 @@
         var options = this.$options.model;
         if (!options) return;
 
-        var model = options.model;
-        var actions = options.actions;
-        var dataPath = options.dataPath;
-
-        // 声明在 vue data 中的 model
-
-        var vueModel = null;
-        function setModel(model) {
-          vueModel = model;
-        }
-        function getModel(model) {
-          return vueModel;
+        var models = options;
+        if (!Array.isArray(options)) {
+          models = [options];
         }
 
-        var Dispatcher = {
-          dispatch: function dispatch(mutation) {
-            var mutations = model.mutations;
-            if (mutations.hasOwnProperty(mutation)) {
-              var args = Array.from(arguments);
-              args.shift(); // mutation name
-              args.unshift(getModel());
+        var existsDefaultModel = false;
+        models.forEach(function (modelOption) {
+          var model = modelOption.model;
+          var actions = modelOption.actions;
+          var dataPath = modelOption.dataPath;
 
-              return mutations[mutation].apply(null, args);
-            }
+          // 声明在 vue data 中的 model
+
+          var vueModel = null;
+          function setModel(model) {
+            vueModel = model;
           }
-        };
+          function getModel(model) {
+            return vueModel;
+          }
 
-        // action ({dispatch: Fuction(mutation, ...args)})
-        // convert action as Vue method
-        var methods = {};
-        var _iteratorNormalCompletion = true;
-        var _didIteratorError = false;
-        var _iteratorError = undefined;
+          var Dispatcher = {
+            dispatch: function dispatch(mutation) {
+              var mutations = model.mutations;
+              if (mutations.hasOwnProperty(mutation)) {
+                var args = Array.from(arguments);
+                args.shift(); // mutation name
+                args.unshift(getModel());
 
-        try {
-          var _loop = function _loop() {
-            var name = _step.value;
-
-            var action = model.actions[name];
-            methods[name] = function () {
-              var args = Array.from(arguments);
-
-              setModel(this.$get(dataPath));
-              args.unshift(Dispatcher);
-
-              return action.apply(null, args);
-            }.bind(_this);
+                return mutations[mutation].apply(null, args);
+              }
+            }
           };
 
-          for (var _iterator = actions[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-            _loop();
-          }
-        } catch (err) {
-          _didIteratorError = true;
-          _iteratorError = err;
-        } finally {
-          try {
-            if (!_iteratorNormalCompletion && _iterator.return) {
-              _iterator.return();
-            }
-          } finally {
-            if (_didIteratorError) {
-              throw _iteratorError;
-            }
-          }
-        }
+          // action ({dispatch: Fuction(mutation, ...args)})
+          // convert action as Vue method
+          var methods = {};
+          var _iteratorNormalCompletion = true;
+          var _didIteratorError = false;
+          var _iteratorError = undefined;
 
-        this.$model = methods;
+          try {
+            var _loop = function _loop() {
+              var name = _step.value;
+
+              var action = model.actions[name];
+              methods[name] = function () {
+                var args = Array.from(arguments);
+
+                if (dataPath) setModel(this.$get(dataPath));
+                args.unshift(Dispatcher);
+
+                return action.apply(null, args);
+              }.bind(_this);
+            };
+
+            for (var _iterator = actions[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+              _loop();
+            }
+          } catch (err) {
+            _didIteratorError = true;
+            _iteratorError = err;
+          } finally {
+            try {
+              if (!_iteratorNormalCompletion && _iterator.return) {
+                _iterator.return();
+              }
+            } finally {
+              if (_didIteratorError) {
+                throw _iteratorError;
+              }
+            }
+          }
+
+          if (modelOption.default && !existsDefaultModel) {
+            existsDefaultModel = true;
+            _this.$model = methods;
+          } else {
+            _this[model.modelName] = methods;
+          }
+        });
       }
       // created () {
       //   let options = this.$options.model
