@@ -70,6 +70,9 @@ import Student from './path/to/Student'
 
 VueModel.reg(Student)
 ```
+### use model
+```src/index.js
+import './models/index'
 
 ### use model in Vue component
 ```javascript
