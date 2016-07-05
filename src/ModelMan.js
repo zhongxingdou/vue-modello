@@ -53,7 +53,8 @@ export default {
 
               return mutations[mutation].apply(null, args)
             }
-          }
+          },
+          state: null
         }
 
         // action ({dispatch: Fuction(mutation, ...args)})
@@ -65,6 +66,7 @@ export default {
             let args = Array.from(arguments)
 
             if (dataPath) setModel(this.$get(dataPath))
+            Dispatcher.state = getModel()
             args.unshift(Dispatcher)
 
             return action.apply(null, args)
@@ -79,12 +81,5 @@ export default {
         }
       })
     }
-    // created () {
-    //   let options = this.$options.model
-    //   if (!options) return
-
-    //   let { model, dataPath } = options
-    //   this.$set(dataPath, model.defaults())
-    // }
   }
 }

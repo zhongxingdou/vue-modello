@@ -260,6 +260,22 @@
     this.modelName = modelDesc.modelName;
     this.mutations = modelDesc.mutations;
     this.actions = modelDesc.actions;
+
+    this.getState = function (states) {
+      var allState = modelDesc.state();
+      if (!states) {
+        return allState;
+      }
+
+      var result = {};
+      if (typeof states === 'string') {
+        states = [states];
+      }
+      states.forEach(function (s) {
+        return result[s] = allState[s];
+      });
+      return result;
+    };
   };
 
   var modelStore = {};
@@ -321,7 +337,9 @@
 
                 return mutations[mutation].apply(null, args);
               }
-            }
+            },
+
+            state: null
           };
 
           // action ({dispatch: Fuction(mutation, ...args)})
@@ -340,6 +358,7 @@
                 var args = Array.from(arguments);
 
                 if (dataPath) setModel(this.$get(dataPath));
+                Dispatcher.state = getModel();
                 args.unshift(Dispatcher);
 
                 return action.apply(null, args);
@@ -372,14 +391,6 @@
           }
         });
       }
-      // created () {
-      //   let options = this.$options.model
-      //   if (!options) return
-
-      //   let { model, dataPath } = options
-      //   this.$set(dataPath, model.defaults())
-      // }
-
     }
   };
 

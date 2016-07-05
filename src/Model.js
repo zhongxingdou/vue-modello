@@ -127,5 +127,19 @@ export default class Model {
     this.modelName = modelDesc.modelName
     this.mutations = modelDesc.mutations
     this.actions = modelDesc.actions
+
+    this.getState = function (states) {
+      let allState = modelDesc.state()
+      if (!states) {
+        return allState
+      }
+
+      let result = {}
+      if (typeof states === 'string') {
+        states = [states]
+      }
+      states.forEach(s => result[s] = allState[s])
+      return result
+    }
   }
 }
