@@ -2,7 +2,7 @@
   "name": "vue-modello",
   "version": "0.3.0",
   "description": "vue model",
-  "main": "dist/vueModel.js",
+  "main": "dist/vueModello.js",
   "directories": {
     "test": "test"
   },

@@ -3,8 +3,8 @@ import babelrc from 'babelrc-rollup'
 
 export default {
   entry: 'src/index.js',
-  dest: 'dist/vueModel.js',
+  dest: 'dist/vueModello.js',
   format: 'umd',
-  moduleName: 'VueModel',
+  moduleName: 'VueModello',
   plugins: [ babel(babelrc()) ]
 }
