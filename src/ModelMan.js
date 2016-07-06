@@ -22,59 +22,67 @@ export default {
   },
   vueMixin: {
     init () {
+      let vm = this
       let options = this.$options.model
       if (!options) return
 
       let models = options
       if (!Array.isArray(options)) {
-        options.default = true
         models = [options]
       }
 
       let existsDefaultModel = false
       models.forEach((modelOption) => {
-        let { model, actions, dataPath } = modelOption
+        let { model, dataPath, states } = modelOption
 
-        // 声明在 vue data 中的 model
-        let vueModel = null
-        function setModel (model) {
-          vueModel = model
-        }
-        function getModel (model) {
-          return vueModel
-        }
+        if (!states) states = []
 
-        let Dispatcher = {
-          dispatch (mutation) {
-            let mutations = model.mutations
-            if (mutations.hasOwnProperty(mutation)) {
-              let args = Array.from(arguments)
-              args.shift() // mutation name
-              args.unshift(getModel())
+        function makeActionContext (mutations, state, service) {
+          return {
+            state,
+            service,
+            dispatch (mutationName) {
+              if (mutations.hasOwnProperty(mutationName)) {
+                let args = Array.from(arguments)
+                args.shift() // mutation name
+                args.unshift(state)
 
-              return mutations[mutation].apply(null, args)
+                return mutations[mutationName].apply(null, args)
+              }
             }
-          },
-          state: null
+          }
         }
 
-        // action ({dispatch: Fuction(mutation, ...args)})
+        // action ({dispatch: Fuction(mutation, ...args), state, service})
         // convert action as Vue method
         let methods = {}
-        for (let name of actions) {
-          let action = model.actions[name]
-          methods[name] = (function () {
-            let args = Array.from(arguments)
+        states.forEach(function (state) {
+          let actions = model.getActions(state)
+          let mutations = model.getMutations(state)
+          for (let name in actions) {
+            let stateAction = actions[name]
+            methods[name] = function () {
+              let context = makeActionContext(
+                mutations,
+                vm.$get(dataPath + '.' + state),
+                model.service
+              )
 
-            if (dataPath) setModel(this.$get(dataPath))
-            Dispatcher.state = getModel()
-            args.unshift(Dispatcher)
+              let args = Array.from(arguments)
+              args.unshift(context)
 
-            return action.apply(null, args)
-          }).bind(this)
+              return stateAction.apply(null, args)
+            }
+          }
+        })
+
+        let service = model.service
+        for(let name in service) {
+          methods[name] = service[name]
         }
 
-        if(modelOption.default && !existsDefaultModel){
+        if((modelOption.default || models.length === 1)
+            && !existsDefaultModel){
           existsDefaultModel = true
           this.$model = methods
         } else {

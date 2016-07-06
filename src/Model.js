@@ -125,8 +125,15 @@ export default class Model {
 
     // add property member
     this.modelName = modelDesc.modelName
-    this.mutations = modelDesc.mutations
-    this.actions = modelDesc.actions
+    this.service = modelDesc.service
+
+    this.getActions = function (state) {
+      return modelDesc.actions[state]
+    }
+
+    this.getMutations = function (state) {
+      return modelDesc.mutations[state]
+    }
 
     this.getState = function (states) {
       let allState = modelDesc.state()
