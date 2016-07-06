@@ -51,27 +51,35 @@ export default {
     }
   },
   actions: {
-    uploadAvatar: function (model, avatarPhoto) {
-      let formData = new FormData()
-      formData.append('image', avatarPhoto)
+    student: {
+      uploadAvatar: function (model, avatarPhoto) {
+        let formData = new FormData()
+        formData.append('image', avatarPhoto)
 
-      $.post('/path/to/uploadPhoto', formData).then((response) => {
-        model.dispatch('updateAvatar', response.imageUrl)
-      })
+        $.post('/path/to/uploadPhoto', formData).then((response) => {
+          model.dispatch('updateAvatar', response.imageUrl)
+        })
+      }
     },
-    loadStudentByPage: function (model, pager) {
-      $.post('/path/to/uploadPhoto', pager).then((response) => {
-        model.dispatch('updateStudentList', response.total, response.students)
-      })
+    studentList: {
+      loadStudentByPage: function (model, pager) {
+        $.post('/path/to/uploadPhoto', pager).then((response) => {
+          model.dispatch('updateStudentList', response.total, response.students)
+        })
+      }
     }
   },
   mutations: {
-    updateAvatar: function (state, avatarUrl) {
-      state.student.avatar = avatarUrl
-    },
-    updateStudentList: function (state, total, students) {
-      state.studentList.total = total
-      state.studentList.records = students
+    student: {
+      updateAvatar: function (state, avatarUrl) {
+        state.avatar = avatarUrl
+      }
+    }
+    studentList: {
+      updateStudentList: function (state, total, students) {
+        state.total = total
+        state.records = students
+      }
     }
   }
 }
@@ -94,7 +102,7 @@ export default {
   mixins: [VueModel.vueMixin],
   model: {
     model: StudentModel,
-    actions: ['uploadAvatar'],
+    states: ['student'],
     dataPath: 'state'
   },
   data: {
@@ -119,7 +127,7 @@ export default {
   mixins: [VueModel.vueMixin],
   model: {
     model: StudentModel,
-    actions: ['loadStudentByPage'],
+    states: ['studentList'],
     dataPath: 'state'
   },
   data: {
