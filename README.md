@@ -12,6 +12,15 @@ Student.js
 ```javascript
 export default {
   modelName: 'Student',
+  state: function () {
+    return {
+      student: {},
+      studentList: {
+        total: 0,
+        records: []
+      }
+    }
+  },
   properties: {
     name: {
       label: 'Full name',
@@ -46,18 +55,23 @@ export default {
       let formData = new FormData()
       formData.append('image', avatarPhoto)
 
-      $.ajax({
-        type: 'post',
-        url: '/path/to/uploadPhoto',
-        data: formData
-      }).then((response) => {
+      $.post('/path/to/uploadPhoto', formData).then((response) => {
         model.dispatch('updateAvatar', response.imageUrl)
+      })
+    },
+    loadStudentByPage: function (model, pager) {
+      $.post('/path/to/uploadPhoto', pager).then((response) => {
+        model.dispatch('updateStudentList', response.total, response.students)
       })
     }
   },
   mutations: {
-    updateAvatar: function (model, avatarUrl) {
-      model.avatar = avatarUrl
+    updateAvatar: function (state, avatarUrl) {
+      state.student.avatar = avatarUrl
+    },
+    updateStudentList: function (state, total, students) {
+      state.studentList.total = total
+      state.studentList.records = students
     }
   }
 }
@@ -71,21 +85,21 @@ import Student from './path/to/Student'
 VueModel.reg(Student)
 ```
 
-### use model in Vue component
+### use model in edit page
 ```javascript
 import VueModel from 'vue-modello'
 let StudentModel = VueModel.get('Student')
 
-new Vue({
+export default {
   mixins: [VueModel.vueMixin],
   model: {
     model: StudentModel,
     actions: ['uploadAvatar'],
-    dataPath: 'student'
+    dataPath: 'state'
   },
-  el: '#demo',
   data: {
     student: StudentModel.defaults()
+    state: StudentModel.getState(['student'])
   },
   methods: {
     uploadAvatar () {
@@ -93,7 +107,32 @@ new Vue({
       this.$model.uploadAvatar(avatarPhoto)
     }
   }
-})
+}
+```
+
+### use model in list page
+```javascript
+import VueModel from 'vue-modello'
+let StudentModel = VueModel.get('Student')
+
+export default {
+  mixins: [VueModel.vueMixin],
+  model: {
+    model: StudentModel,
+    actions: ['loadStudentByPage'],
+    dataPath: 'state'
+  },
+  data: {
+    pager: {
+      total: 0,
+      pageIndex: 1
+    },
+    state: StudentModel.getState(['studentList'])
+  },
+  created () {
+    this.$model.loadStudentByPage(this.pager)
+  }
+}
 ```
 
 ## Development
