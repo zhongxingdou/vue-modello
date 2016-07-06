@@ -1,6 +1,6 @@
 {
   "name": "vue-modello",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "vue model",
   "main": "dist/vueModello.js",
   "directories": {

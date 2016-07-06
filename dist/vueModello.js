@@ -258,8 +258,15 @@
 
     // add property member
     this.modelName = modelDesc.modelName;
-    this.mutations = modelDesc.mutations;
-    this.actions = modelDesc.actions;
+    this.service = modelDesc.service;
+
+    this.getActions = function (state) {
+      return modelDesc.actions[state];
+    };
+
+    this.getMutations = function (state) {
+      return modelDesc.mutations[state];
+    };
 
     this.getState = function (states) {
       var allState = modelDesc.state();
@@ -303,88 +310,70 @@
       init: function init() {
         var _this = this;
 
+        var vm = this;
         var options = this.$options.model;
         if (!options) return;
 
         var models = options;
         if (!Array.isArray(options)) {
-          options.default = true;
           models = [options];
         }
 
         var existsDefaultModel = false;
         models.forEach(function (modelOption) {
           var model = modelOption.model;
-          var actions = modelOption.actions;
           var dataPath = modelOption.dataPath;
+          var states = modelOption.states;
 
-          // 声明在 vue data 中的 model
 
-          var vueModel = null;
-          function setModel(model) {
-            vueModel = model;
-          }
-          function getModel(model) {
-            return vueModel;
-          }
+          if (!states) states = [];
 
-          var Dispatcher = {
-            dispatch: function dispatch(mutation) {
-              var mutations = model.mutations;
-              if (mutations.hasOwnProperty(mutation)) {
-                var args = Array.from(arguments);
-                args.shift(); // mutation name
-                args.unshift(getModel());
+          function makeActionContext(mutations, state, service) {
+            return {
+              state: state,
+              service: service,
+              dispatch: function dispatch(mutationName) {
+                if (mutations.hasOwnProperty(mutationName)) {
+                  var args = Array.from(arguments);
+                  args.shift(); // mutation name
+                  args.unshift(state);
 
-                return mutations[mutation].apply(null, args);
+                  return mutations[mutationName].apply(null, args);
+                }
               }
-            },
+            };
+          }
 
-            state: null
-          };
-
-          // action ({dispatch: Fuction(mutation, ...args)})
+          // action ({dispatch: Fuction(mutation, ...args), state, service})
           // convert action as Vue method
           var methods = {};
-          var _iteratorNormalCompletion = true;
-          var _didIteratorError = false;
-          var _iteratorError = undefined;
+          states.forEach(function (state) {
+            var actions = model.getActions(state);
+            var mutations = model.getMutations(state);
 
-          try {
-            var _loop = function _loop() {
-              var name = _step.value;
-
-              var action = model.actions[name];
+            var _loop = function _loop(name) {
+              var stateAction = actions[name];
               methods[name] = function () {
+                var context = makeActionContext(mutations, vm.$get(dataPath + '.' + state), model.service);
+
                 var args = Array.from(arguments);
+                args.unshift(context);
 
-                if (dataPath) setModel(this.$get(dataPath));
-                Dispatcher.state = getModel();
-                args.unshift(Dispatcher);
-
-                return action.apply(null, args);
-              }.bind(_this);
+                return stateAction.apply(null, args);
+              };
             };
 
-            for (var _iterator = actions[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-              _loop();
+            for (var name in actions) {
+              _loop(name);
             }
-          } catch (err) {
-            _didIteratorError = true;
-            _iteratorError = err;
-          } finally {
-            try {
-              if (!_iteratorNormalCompletion && _iterator.return) {
-                _iterator.return();
-              }
-            } finally {
-              if (_didIteratorError) {
-                throw _iteratorError;
-              }
-            }
+          });
+
+          var service = model.service;
+          for (var name in service) {
+            methods[name] = service[name];
           }
 
-          if (modelOption.default && !existsDefaultModel) {
+          if ((modelOption.default || models.length === 1) && !existsDefaultModel) {
             existsDefaultModel = true;
             _this.$model = methods;
           } else {
