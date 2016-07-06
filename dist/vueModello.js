@@ -308,6 +308,7 @@
 
         var models = options;
         if (!Array.isArray(options)) {
+          options.default = true;
           models = [options];
         }
 
