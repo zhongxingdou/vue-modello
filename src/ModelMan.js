@@ -27,6 +27,7 @@ export default {
 
       let models = options
       if (!Array.isArray(options)) {
+        options.default = true
         models = [options]
       }
 
