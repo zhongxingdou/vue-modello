@@ -2,13 +2,22 @@ import ModelMan from './ModelMan'
 
 export default class Model {
   constructor (modelDesc) {
-    let { properties, rules } = modelDesc
+    let { properties, rules, mixins } = modelDesc
     let binding = modelDesc.binding
     let bindingMap = binding ? binding.propMap : {}
 
     // collect defaults and labels
     let defaultState = {}
     let labels = {}
+
+    if (mixins) {
+      for(let regState in mixins) {
+        let module = mixins[regState]
+        modelDesc.state[regState] = module.state
+        modelDesc.actions[regState] = module.actions
+        modelDesc.mutations[regState] = module.mutations
+      }
+    }
 
     let getBindingModel = function () {
       return binding ? ModelMan.get(binding.modelName) : null
