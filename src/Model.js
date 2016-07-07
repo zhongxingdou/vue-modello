@@ -1,12 +1,16 @@
 import ModelMan from './ModelMan'
 
+function wrapStateFn (fn, stateFn) {
+
+}
+
 export default class Model {
   constructor (modelDesc) {
     let { properties, rules, mixins } = modelDesc
     let binding = modelDesc.binding
     let bindingMap = binding ? binding.propMap : {}
 
-    if (!modelDesc.state) modelDesc.state = {}
+    if (!modelDesc.state) modelDesc.state = function () { return {} }
     if (!modelDesc.actions) modelDesc.actions = {}
     if (!modelDesc.mutations) modelDesc.mutations = {}
 
@@ -14,13 +18,23 @@ export default class Model {
     let defaultState = {}
     let labels = {}
 
+    let mixinState = {}
     if (mixins) {
       for(let regState in mixins) {
         let module = mixins[regState]
-        modelDesc.state[regState] = module.state
+        mixinState[regState] = module.state
         modelDesc.actions[regState] = module.actions
         modelDesc.mutations[regState] = module.mutations
       }
+    }
+
+    let oldState = modelDesc.state
+    modelDesc.state = function () {
+      let result = oldState()
+      for(let regState in mixinState) {
+        result[regState] = mixinState[regState]()
+      }
+      return result
     }
 
     let getBindingModel = function () {

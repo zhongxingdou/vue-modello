@@ -132,7 +132,9 @@
     var binding = modelDesc.binding;
     var bindingMap = binding ? binding.propMap : {};
 
-    if (!modelDesc.state) modelDesc.state = {};
+    if (!modelDesc.state) modelDesc.state = function () {
+      return {};
+    };
     if (!modelDesc.actions) modelDesc.actions = {};
     if (!modelDesc.mutations) modelDesc.mutations = {};
 
@@ -140,14 +142,24 @@
     var defaultState = {};
     var labels = {};
 
+    var mixinState = {};
     if (mixins) {
       for (var regState in mixins) {
         var module = mixins[regState];
-        modelDesc.state[regState] = module.state;
+        mixinState[regState] = module.state;
         modelDesc.actions[regState] = module.actions;
         modelDesc.mutations[regState] = module.mutations;
       }
     }
+
+    var oldState = modelDesc.state;
+    modelDesc.state = function () {
+      var result = oldState();
+      for (var _regState in mixinState) {
+        result[_regState] = mixinState[_regState]();
+      }
+      return result;
+    };
 
     var getBindingModel = function getBindingModel() {
       return binding ? ModelMan.get(binding.modelName) : null;
