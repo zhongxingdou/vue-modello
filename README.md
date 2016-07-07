@@ -111,9 +111,9 @@ export default {
     dataPath: 'state'
   },
   data: {
-    student: StudentModel.defaults()
+    provinces: [],
+    student: StudentModel.defaults(),
     state: StudentModel.getState(['student'])
-    provinces: []
   },
   created () {
     this.$model.getProvinces().then(res => {this.provinces = res.provinces})
@@ -144,6 +144,7 @@ export default {
       total: 0,
       pageIndex: 1
     },
+    provinces: [],
     state: StudentModel.getState(['studentList'])
   },
   created () {
