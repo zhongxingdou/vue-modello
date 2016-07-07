@@ -132,6 +132,10 @@
     var binding = modelDesc.binding;
     var bindingMap = binding ? binding.propMap : {};
 
+    if (!modelDesc.state) modelDesc.state = {};
+    if (!modelDesc.actions) modelDesc.actions = {};
+    if (!modelDesc.mutations) modelDesc.mutations = {};
+
     // collect defaults and labels
     var defaultState = {};
     var labels = {};
