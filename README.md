@@ -50,6 +50,11 @@ export default {
       required: true
     }
   },
+  service: {
+    getProvinces () {
+      return $.post('/path/to/provinces')
+    }
+  },
   actions: {
     student: {
       uploadAvatar: function (model, avatarPhoto) {
@@ -63,7 +68,7 @@ export default {
     },
     studentList: {
       loadStudentByPage: function (model, pager) {
-        $.post('/path/to/uploadPhoto', pager).then((response) => {
+        $.post('/path/to/student', pager).then((response) => {
           model.dispatch('updateStudentList', response.total, response.students)
         })
       }
@@ -108,6 +113,10 @@ export default {
   data: {
     student: StudentModel.defaults()
     state: StudentModel.getState(['student'])
+    provinces: []
+  },
+  created () {
+    this.$model.getProvinces().then(res => {this.provinces = res.provinces})
   },
   methods: {
     uploadAvatar () {
@@ -139,6 +148,7 @@ export default {
   },
   created () {
     this.$model.loadStudentByPage(this.pager)
+    this.$model.getProvinces().then(res => {this.provinces = res.provinces})
   }
 }
 ```
