@@ -6,6 +6,10 @@ export default class Model {
     let binding = modelDesc.binding
     let bindingMap = binding ? binding.propMap : {}
 
+    if (!modelDesc.state) modelDesc.state = {}
+    if (!modelDesc.actions) modelDesc.actions = {}
+    if (!modelDesc.mutations) modelDesc.mutations = {}
+
     // collect defaults and labels
     let defaultState = {}
     let labels = {}
