@@ -127,6 +127,7 @@
     classCallCheck(this, Model);
     var properties = modelDesc.properties;
     var rules = modelDesc.rules;
+    var mixins = modelDesc.mixins;
 
     var binding = modelDesc.binding;
     var bindingMap = binding ? binding.propMap : {};
@@ -134,6 +135,15 @@
     // collect defaults and labels
     var defaultState = {};
     var labels = {};
+
+    if (mixins) {
+      for (var regState in mixins) {
+        var module = mixins[regState];
+        modelDesc.state[regState] = module.state;
+        modelDesc.actions[regState] = module.actions;
+        modelDesc.mutations[regState] = module.mutations;
+      }
+    }
 
     var getBindingModel = function getBindingModel() {
       return binding ? ModelMan.get(binding.modelName) : null;
