@@ -53,23 +53,27 @@ export default {
   service: {
     getProvinces () {
       return $.post('/path/to/provinces')
+    },
+    uploadImage (image) {
+      let data = new FormData()
+      data.append({image: image})
+      return $.post('/path/to/upload', data).then((response) => {
+        return response.imageUrl
+      })
     }
   },
   actions: {
     student: {
-      uploadAvatar: function (model, avatarPhoto) {
-        let formData = new FormData()
-        formData.append('image', avatarPhoto)
-
-        $.post('/path/to/uploadPhoto', formData).then((response) => {
-          model.dispatch('updateAvatar', response.imageUrl)
+      uploadAvatar: function ({dispatch, service}, avatarPhoto) {
+        service.uploadImage(avatarPhoto).then((imageUrl) => {
+          dispatch('updateAvatar', imageUrl)
         })
       }
     },
     studentList: {
-      loadStudentByPage: function (model, pager) {
+      loadStudentByPage: function ({ dispatch }, pager) {
         $.post('/path/to/student', pager).then((response) => {
-          model.dispatch('updateStudentList', response.total, response.students)
+          dispatch('updateStudentList', response.total, response.students)
         })
       }
     }
@@ -112,7 +116,6 @@ export default {
   },
   data: {
     provinces: [],
-    student: StudentModel.defaults(),
     state: StudentModel.getState(['student'])
   },
   created () {
