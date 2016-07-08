@@ -1,9 +1,5 @@
 import ModelMan from './ModelMan'
 
-function wrapStateFn (fn, stateFn) {
-
-}
-
 export default class Model {
   constructor (modelDesc) {
     let { properties, rules, mixins } = modelDesc
