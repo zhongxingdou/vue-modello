@@ -8,18 +8,73 @@ npm install vue-modello --save
 ## Usage
 
 ### define model
-Student.js
+
+#### define student list sub module of model
+
+studentList.js
 ```javascript
 export default {
-  modelName: 'Student',
   state: function () {
     return {
-      student: {},
-      studentList: {
-        total: 0,
-        records: []
-      }
+      total: 0,
+      records: []
     }
+  },
+  actions: {
+    loadStudentByPage: function ({ dispatch }, pager) {
+      $.post('/path/to/student', pager).then((response) => {
+        dispatch('updateStudentList', response.total, response.students)
+      })
+    }
+  },
+  mutations: {
+    updateStudentList: function (state, total, students) {
+      state.total = total
+      state.records = students
+    }
+  }
+}
+```
+
+#### define student sub module of model
+
+student.js
+```javascript
+export default {
+  state: function () {
+    return {
+      name: '',
+      gender: 0,
+      birthday: null
+    }
+  },
+  actions: {
+    uploadAvatar: function ({dispatch, service}, avatarPhoto) {
+      service.uploadImage(avatarPhoto).then((imageUrl) => {
+        dispatch('updateAvatar', imageUrl)
+      })
+    }
+  },
+  mutations: {
+    updateAvatar: function (state, avatarUrl) {
+      state.avatar = avatarUrl
+    }
+  }
+}
+```
+
+### define model and mixin sub modules
+
+model.js
+```javascript
+import student from './student'
+import studentList from './studentList'
+
+export default {
+  modelName: 'Student',
+  mixins: {
+    student: student,
+    studentList: studentList
   },
   properties: {
     name: {
@@ -61,54 +116,25 @@ export default {
         return response.imageUrl
       })
     }
-  },
-  actions: {
-    student: {
-      uploadAvatar: function ({dispatch, service}, avatarPhoto) {
-        service.uploadImage(avatarPhoto).then((imageUrl) => {
-          dispatch('updateAvatar', imageUrl)
-        })
-      }
-    },
-    studentList: {
-      loadStudentByPage: function ({ dispatch }, pager) {
-        $.post('/path/to/student', pager).then((response) => {
-          dispatch('updateStudentList', response.total, response.students)
-        })
-      }
-    }
-  },
-  mutations: {
-    student: {
-      updateAvatar: function (state, avatarUrl) {
-        state.avatar = avatarUrl
-      }
-    }
-    studentList: {
-      updateStudentList: function (state, total, students) {
-        state.total = total
-        state.records = students
-      }
-    }
   }
 }
 ```
 
 ### register model
 ```javascript
-import VueModel from 'vue-modello'
-import Student from './path/to/Student'
+import VueModello from 'vue-modello'
+import Student from './path/to/models/student/model'
 
-VueModel.reg(Student)
+VueModello.reg(Student)
 ```
 
 ### use model in edit page
 ```javascript
-import VueModel from 'vue-modello'
-let StudentModel = VueModel.get('Student')
+import VueModello from 'vue-modello'
+let StudentModel = VueModello.get('Student')
 
 export default {
-  mixins: [VueModel.vueMixin],
+  mixins: [VueModello.vueMixin],
   model: {
     model: StudentModel,
     states: ['student'],
@@ -132,11 +158,11 @@ export default {
 
 ### use model in list page
 ```javascript
-import VueModel from 'vue-modello'
-let StudentModel = VueModel.get('Student')
+import VueModello from 'vue-modello'
+let StudentModel = VueModello.get('Student')
 
 export default {
-  mixins: [VueModel.vueMixin],
+  mixins: [VueModello.vueMixin],
   model: {
     model: StudentModel,
     states: ['studentList'],
