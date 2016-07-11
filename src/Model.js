@@ -86,9 +86,11 @@ export default class Model {
       return rule
     }
 
-    this.getRules = function () {
+    this.getRules = function (props) {
+      if (typeof props === 'string') props = [props]
+      if (!Array.isArray(props)) props = Object.keys(properties)
       let rules = {}
-      Object.keys(properties).forEach((prop) => {
+      props.forEach((prop) => {
         rules[prop] = this.getPropRule(prop)
       })
       return rules
