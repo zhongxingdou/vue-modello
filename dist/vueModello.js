@@ -214,11 +214,13 @@
       return rule;
     };
 
-    this.getRules = function () {
+    this.getRules = function (props) {
       var _this = this;
 
+      if (typeof props === 'string') props = [props];
+      if (!Array.isArray(props)) props = Object.keys(properties);
       var rules = {};
-      Object.keys(properties).forEach(function (prop) {
+      props.forEach(function (prop) {
         rules[prop] = _this.getPropRule(prop);
       });
       return rules;
