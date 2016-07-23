@@ -4,6 +4,22 @@
   (global.VueModello = factory());
 }(this, function () { 'use strict';
 
+  function makeActionContext(mutations, state, service) {
+    return {
+      state: state,
+      service: service,
+      dispatch: function dispatch(mutationName) {
+        if (mutations.hasOwnProperty(mutationName)) {
+          var args = Array.from(arguments);
+          args.shift(); // mutation name
+          args.unshift(state);
+
+          return mutations[mutationName].apply(null, args);
+        }
+      }
+    };
+  }
+
   var jsx = function () {
     var REACT_ELEMENT_TYPE = typeof Symbol === "function" && Symbol.for && Symbol.for("react.element") || 0xeac7;
     return function createRawReactElement(type, props, key, children) {
@@ -123,6 +139,16 @@
     };
   }();
 
+  var toConsumableArray = function (arr) {
+    if (Array.isArray(arr)) {
+      for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i];
+
+      return arr2;
+    } else {
+      return Array.from(arr);
+    }
+  };
+
   var Model = function Model(modelDesc) {
     classCallCheck(this, Model);
     var properties = modelDesc.properties;
@@ -149,6 +175,16 @@
         mixinState[regState] = module.state;
         modelDesc.actions[regState] = module.actions;
         modelDesc.mutations[regState] = module.mutations;
+        // add meta __state__ to action
+        // let actions = module.actions
+        // Object.keys(actions).forEach((name) => {
+        //   Object.defineProperty(actions[name], '__state__', {
+        //     value: regState,
+        //     enumerable: false,
+        //     writable: false,
+        //     configurable: false
+        //   })
+        // })
       }
     }
 
@@ -288,11 +324,81 @@
     this.modelName = modelDesc.modelName;
     this.service = modelDesc.service;
 
-    this.getActions = function (state) {
+    this.getStateActions = function (state) {
       return modelDesc.actions[state];
     };
 
-    this.getMutations = function (state) {
+    var beforeDispatchHanlers = [];
+    this.beforeDispatch = function (handler) {
+      beforeDispatchHanlers.push(handler);
+    };
+
+    function fireBeforeDispatch() {
+      var args = arguments;
+      beforeDispatchHanlers.forEach(function () {
+        handler.apply(null, args);
+      });
+    }
+
+    this.applyAction = function (state, action, args) {
+      fireBeforeDispatch(state, action, args);
+      return modelDesc.actions[state][action].apply(null, args);
+    };
+
+    this.dispatch = function (stateAction) {
+      var temp = stateAction.split('.');
+      var stateKey = temp[0];
+      var action = temp[1];
+      var state = this.getState(stateKey);
+
+      var context = makeActionContext(this.getStateMutations(stateKey), state[stateKey], this.service);
+
+      var BIZ_PARAM_INDEX = 1;
+      var args = Array.from(arguments).slice(BIZ_PARAM_INDEX);
+      args.unshift(context);
+
+      return this.applyAction(stateKey, action, args).then(function () {
+        return state;
+      });
+    };
+
+    this.dispatchAll = function (fn) {
+      var _this4 = this;
+
+      var BIZ_PARAM_INDEX = 1;
+
+      var callers = [];
+      var subStates = new Set();
+
+      function dispatch(stateAction) {
+        var temp = stateAction.split('.');
+        var stateKey = temp[0];
+        var action = temp[1];
+        var args = Array.from(arguments).slice(BIZ_PARAM_INDEX);
+
+        callers.push({ stateKey: stateKey, action: action, args: args });
+        subStates.add(stateKey);
+      }
+
+      fn(dispatch);
+
+      var state = this.getState([].concat(toConsumableArray(subStates)));
+
+      return Promise.all(callers.map(function (_ref) {
+        var stateKey = _ref.stateKey;
+        var action = _ref.action;
+        var args = _ref.args;
+
+        var context = makeActionContext(_this4.getStateMutations(stateKey), state[stateKey], _this4.service);
+        args.unshift(context);
+
+        return _this4.applyAction(stateKey, action, args);
+      })).then(function () {
+        return state;
+      });
+    };
+
+    this.getStateMutations = function (state) {
       return modelDesc.mutations[state];
     };
 
@@ -339,61 +445,34 @@
         var _this = this;
 
         var vm = this;
-        var options = this.$options.model;
-        if (!options) return;
-
-        var models = options;
-        if (!Array.isArray(options)) {
-          models = [options];
-        }
+        var config = this.$options.modello;
+        if (!config) return;
+        var models = [].concat(config);
 
         var existsDefaultModel = false;
         models.forEach(function (modelOption) {
           var model = modelOption.model;
-          var dataPath = modelOption.dataPath;
           var states = modelOption.states;
 
 
           if (!states) states = [];
 
-          function makeActionContext(mutations, state, service) {
-            return {
-              state: state,
-              service: service,
-              dispatch: function dispatch(mutationName) {
-                if (mutations.hasOwnProperty(mutationName)) {
-                  var args = Array.from(arguments);
-                  args.shift(); // mutation name
-                  args.unshift(state);
-
-                  return mutations[mutationName].apply(null, args);
-                }
-              }
-            };
-          }
-
           // action ({dispatch: Fuction(mutation, ...args), state, service})
           // convert action as Vue method
           var methods = {};
           states.forEach(function (state) {
-            var actions = model.getActions(state);
-            var mutations = model.getMutations(state);
-
-            var _loop = function _loop(name) {
-              var stateAction = actions[name];
-              methods[name] = function () {
-                var context = makeActionContext(mutations, vm.$get(dataPath + '.' + state), model.service);
+            var actions = model.getStateActions(state);
+            var mutations = model.getStateMutations(state);
+            Object.keys(actions).forEach(function (action) {
+              methods[action] = function () {
+                var context = makeActionContext(mutations, vm.$get(state), model.service);
 
                 var args = Array.from(arguments);
                 args.unshift(context);
 
-                return stateAction.apply(null, args);
+                return model.applyAction(state, action, args);
               };
-            };
-
-            for (var name in actions) {
-              _loop(name);
-            }
+            });
           });
 
           var service = model.service;
@@ -408,6 +487,19 @@
             _this[model.modelName] = methods;
           }
         });
+      },
+      data: function data() {
+        var config = this.$options.modello;
+        if (!config) return;
+
+        var models = [].concat(config);
+
+        var result = {};
+        models.forEach(function (option) {
+          Object.assign(result, option.model.getState(option.states));
+        });
+
+        return result;
       }
     }
   };
