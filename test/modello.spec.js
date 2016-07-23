@@ -1,4 +1,5 @@
 import should from 'should'
+import sinon from 'sinon'
 import Model from '../src/Model'
 import modello from '../src/index'
 
@@ -286,5 +287,23 @@ describe('Modello', function () {
     should(A.getPropDefaults('name')).equal('')
     should(A.getPropDefaults('gender')).equal(true)
     should(A.getPropDefaults('age')).equal(0)
+  })
+
+  it('applyAction() normal', function () {
+    let action = sinon.spy()
+    let desc = {
+      actions: {
+        foo: {
+          bar: action
+        }
+      }
+    }
+
+    let A = new Model(desc)
+
+    let args = ['a', 'b']
+    A.applyAction('foo', 'bar', args)
+
+    action.calledWith(...args).should.be.true()
   })
 })

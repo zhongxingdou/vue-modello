@@ -1,4 +1,5 @@
 import ModelMan from './ModelMan'
+import { makeActionContext } from './util'
 
 export default class Model {
   constructor (modelDesc) {
@@ -21,6 +22,16 @@ export default class Model {
         mixinState[regState] = module.state
         modelDesc.actions[regState] = module.actions
         modelDesc.mutations[regState] = module.mutations
+        // add meta __state__ to action
+        // let actions = module.actions
+        // Object.keys(actions).forEach((name) => {
+        //   Object.defineProperty(actions[name], '__state__', {
+        //     value: regState,
+        //     enumerable: false,
+        //     writable: false,
+        //     configurable: false
+        //   })
+        // })
       }
     }
 
@@ -152,11 +163,81 @@ export default class Model {
     this.modelName = modelDesc.modelName
     this.service = modelDesc.service
 
-    this.getActions = function (state) {
+    this.getStateActions = function (state) {
       return modelDesc.actions[state]
     }
 
-    this.getMutations = function (state) {
+    let beforeDispatchHanlers = []
+    this.beforeDispatch = function (handler) {
+      beforeDispatchHanlers.push(handler)
+    }
+
+    function fireBeforeDispatch () {
+      let args = arguments
+      beforeDispatchHanlers.forEach(function () {
+        handler.apply(null, args)
+      })
+    }
+
+    this.applyAction = function (state, action, args) {
+      fireBeforeDispatch(state, action, args)
+      return modelDesc.actions[state][action].apply(null, args)
+    }
+
+    this.dispatch = function (stateAction) {
+      let temp = stateAction.split('.')
+      let stateKey = temp[0]
+      let action = temp[1]
+      let state = this.getState(stateKey)
+
+      let context = makeActionContext(
+        this.getStateMutations(stateKey),
+        state[stateKey],
+        this.service
+      )
+
+      const BIZ_PARAM_INDEX = 1
+      let args = Array.from(arguments).slice(BIZ_PARAM_INDEX)
+      args.unshift(context)
+
+      return this.applyAction(stateKey, action, args).then(() => {
+        return state
+      })
+    }
+
+    this.dispatchAll = function (fn) {
+      const BIZ_PARAM_INDEX = 1
+
+      let callers = []
+      let subStates = new Set()
+
+      function dispatch (stateAction) {
+        let temp = stateAction.split('.')
+        let stateKey = temp[0]
+        let action = temp[1]
+        let args = Array.from(arguments).slice(BIZ_PARAM_INDEX)
+
+        callers.push({ stateKey, action, args })
+        subStates.add(stateKey)
+      }
+
+      fn(dispatch)
+
+      let state = this.getState([...subStates])
+
+      return Promise.all(callers.map(({ stateKey, action, args }) => {
+        let context = makeActionContext(
+          this.getStateMutations(stateKey),
+          state[stateKey],
+          this.service
+        )
+        args.unshift(context)
+
+        return this.applyAction(stateKey, action, args)
+      })).then(() => { return state })
+    }
+
+    this.getStateMutations = function (state) {
       return modelDesc.mutations[state]
     }
 

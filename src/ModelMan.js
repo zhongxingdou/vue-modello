@@ -1,4 +1,5 @@
 import Model from './Model'
+import { makeActionContext } from './util'
 
 let modelStore = {}
 export default {
@@ -23,57 +24,37 @@ export default {
   vueMixin: {
     init () {
       let vm = this
-      let options = this.$options.model
-      if (!options) return
-
-      let models = options
-      if (!Array.isArray(options)) {
-        models = [options]
-      }
+      let config = this.$options.modello
+      if (!config) return
+      let models = [].concat(config)
 
       let existsDefaultModel = false
       models.forEach((modelOption) => {
-        let { model, dataPath, states } = modelOption
+        let { model, states } = modelOption
 
         if (!states) states = []
 
-        function makeActionContext (mutations, state, service) {
-          return {
-            state,
-            service,
-            dispatch (mutationName) {
-              if (mutations.hasOwnProperty(mutationName)) {
-                let args = Array.from(arguments)
-                args.shift() // mutation name
-                args.unshift(state)
-
-                return mutations[mutationName].apply(null, args)
-              }
-            }
-          }
-        }
 
         // action ({dispatch: Fuction(mutation, ...args), state, service})
         // convert action as Vue method
         let methods = {}
         states.forEach(function (state) {
-          let actions = model.getActions(state)
-          let mutations = model.getMutations(state)
-          for (let name in actions) {
-            let stateAction = actions[name]
-            methods[name] = function () {
+          let actions = model.getStateActions(state)
+          let mutations = model.getStateMutations(state)
+          Object.keys(actions).forEach(function (action) {
+            methods[action] = function () {
               let context = makeActionContext(
                 mutations,
-                vm.$get(dataPath + '.' + state),
+                vm.$get(state),
                 model.service
               )
 
               let args = Array.from(arguments)
               args.unshift(context)
 
-              return stateAction.apply(null, args)
+              return model.applyAction(state, action, args)
             }
-          }
+          })
         })
 
         let service = model.service
@@ -89,6 +70,19 @@ export default {
           this[model.modelName] = methods
         }
       })
+    },
+    data () {
+      let config = this.$options.modello
+      if (!config) return
+
+      let models = [].concat(config)
+
+      let result = {}
+      models.forEach((option) => {
+        Object.assign(result, option.model.getState(option.states))
+      })
+
+      return result
     }
   }
 }
