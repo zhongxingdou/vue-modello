@@ -22,17 +22,15 @@ export default class Model {
         mixinState[regState] = module.state
         modelDesc.actions[regState] = module.actions
         modelDesc.mutations[regState] = module.mutations
-        // add meta __state__ to action
-        // let actions = module.actions
-        // Object.keys(actions).forEach((name) => {
-        //   Object.defineProperty(actions[name], '__state__', {
-        //     value: regState,
-        //     enumerable: false,
-        //     writable: false,
-        //     configurable: false
-        //   })
-        // })
+
       }
+    }
+
+    let actionStateMap = {}
+    for(let state in modelDesc.actions) {
+      Object.keys(modelDesc.actions[state]).forEach((name) => {
+        actionStateMap[name] = state
+      })
     }
 
     let oldState = modelDesc.state
@@ -184,10 +182,8 @@ export default class Model {
       return modelDesc.actions[state][action].apply(null, args)
     }
 
-    this.dispatch = function (stateAction) {
-      let temp = stateAction.split('.')
-      let stateKey = temp[0]
-      let action = temp[1]
+    this.dispatch = function (action) {
+      let stateKey = actionStateMap[action]
       let state = this.getState(stateKey)
 
       let context = makeActionContext(
@@ -211,10 +207,8 @@ export default class Model {
       let callers = []
       let subStates = new Set()
 
-      function dispatch (stateAction) {
-        let temp = stateAction.split('.')
-        let stateKey = temp[0]
-        let action = temp[1]
+      function dispatch (action) {
+        let stateKey = actionStateMap[action]
         let args = Array.from(arguments).slice(BIZ_PARAM_INDEX)
 
         callers.push({ stateKey, action, args })
