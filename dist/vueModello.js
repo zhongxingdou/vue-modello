@@ -175,17 +175,19 @@
         mixinState[regState] = module.state;
         modelDesc.actions[regState] = module.actions;
         modelDesc.mutations[regState] = module.mutations;
-        // add meta __state__ to action
-        // let actions = module.actions
-        // Object.keys(actions).forEach((name) => {
-        //   Object.defineProperty(actions[name], '__state__', {
-        //     value: regState,
-        //     enumerable: false,
-        //     writable: false,
-        //     configurable: false
-        //   })
-        // })
       }
+    }
+
+    var actionStateMap = {};
+
+    var _loop = function _loop(state) {
+      Object.keys(modelDesc.actions[state]).forEach(function (name) {
+        actionStateMap[name] = state;
+      });
+    };
+
+    for (var state in modelDesc.actions) {
+      _loop(state);
     }
 
     var oldState = modelDesc.state;
@@ -345,10 +347,8 @@
       return modelDesc.actions[state][action].apply(null, args);
     };
 
-    this.dispatch = function (stateAction) {
-      var temp = stateAction.split('.');
-      var stateKey = temp[0];
-      var action = temp[1];
+    this.dispatch = function (action) {
+      var stateKey = actionStateMap[action];
       var state = this.getState(stateKey);
 
       var context = makeActionContext(this.getStateMutations(stateKey), state[stateKey], this.service);
@@ -370,10 +370,8 @@
       var callers = [];
       var subStates = new Set();
 
-      function dispatch(stateAction) {
-        var temp = stateAction.split('.');
-        var stateKey = temp[0];
-        var action = temp[1];
+      function dispatch(action) {
+        var stateKey = actionStateMap[action];
         var args = Array.from(arguments).slice(BIZ_PARAM_INDEX);
 
         callers.push({ stateKey: stateKey, action: action, args: args });
@@ -470,7 +468,10 @@
                 var args = Array.from(arguments);
                 args.unshift(context);
 
-                return model.applyAction(state, action, args);
+                vm.$emit('modello:' + model.modelName + '.' + action + ':before');
+                return model.applyAction(state, action, args).then(function () {
+                  vm.$emit('modello:' + model.modelName + '.' + action + ':after');
+                });
               };
             });
           });
