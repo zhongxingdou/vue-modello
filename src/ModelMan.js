@@ -52,7 +52,10 @@ export default {
               let args = Array.from(arguments)
               args.unshift(context)
 
-              return model.applyAction(state, action, args)
+              vm.$emit('modello:' + model.modelName + '.' + action + ':before')
+              return model.applyAction(state, action, args).then(function () {
+                vm.$emit('modello:' + model.modelName + '.' + action + ':after')
+              })
             }
           })
         })
