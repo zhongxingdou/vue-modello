@@ -469,9 +469,14 @@
                 args.unshift(context);
 
                 vm.$emit('modello:' + model.modelName + '.' + action + ':before');
-                return model.applyAction(state, action, args).then(function () {
+                var result = model.applyAction(state, action, args);
+                if (result && result.then) {
+                  return result.then(function () {
+                    vm.$emit('modello:' + model.modelName + '.' + action + ':after');
+                  });
+                } else {
                   vm.$emit('modello:' + model.modelName + '.' + action + ':after');
-                });
+                }
               };
             });
           });
