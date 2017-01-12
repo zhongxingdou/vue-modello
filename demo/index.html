@@ -1,0 +1,91 @@
+<html>
+  <head>
+    <title> vue-modello demo </title>
+    <script src="./lib/vue.js"></script>
+    <script src="../dist/vueModello.js"></script>
+  </head>
+  <body>
+    <div id="demo">
+      <table>
+        <tbody>
+          <tr v-for="student in Student.list.records">
+            <td>{{ student.name }}</td>
+            <td>{{ student.gender | gender }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <ul>
+        <li v-for="course in Student.courses"> {{ course }}</li>
+      </ul>
+    </div>
+    <script>
+      Vue.mixin(VueModello.vueMixin)
+
+      var StudentModel = {
+        modelName: 'Student',
+        state: function () {
+          return {
+            list: {
+              total: 0,
+              records: []
+            },
+            selectedStudent: null,
+            courses: []
+          }
+        },
+        actions: {
+          loadStudentByPage: function ({ commit, dispatch }, pager) {
+            let response = {
+              total: 100,
+              students: [
+                {name: 'hal', gender: 1},
+                {name: 'lily', gender: 0},
+                {name: 'lucy', gender: 0},
+                {name: 'jim', gender: 1}
+              ]
+            }
+            commit('updateStudentList', response.total, response.students)
+            // return new Promise(function (resolve, reject) {
+              // reject('error ajax')
+            // })
+            dispatch('loadMyCourse')
+          },
+          loadMyCourse: function ({ state, commit }) {
+            console.info(state.selectedStudent)
+            let response = ['english', 'math']
+            commit('updateCourses', response)
+          }
+        },
+        mutations: {
+          updateStudentList: function (state, total, students) {
+            state.list.total = total
+            state.list.records = students
+          },
+          updateCourses: function (state, courses) {
+            state.courses = courses
+          }
+        }
+      }
+
+      VueModello.reg(StudentModel)
+
+      new Vue({
+        el: '#demo',
+        modello: {
+          model: 'Student'
+        },
+        filters: {
+          gender (val) {
+            return val === 1 ? "Male" : "Female"
+          }
+        },
+        created () {
+          this.$model.loadStudentByPage({page_index: 1, page_size: 20})
+          //.catch(function (error) {
+          // alert(error)
+          //})
+        }
+      })
+    </script>
+  </body>
+</html>
