@@ -1,11 +1,39 @@
 import ModelMan from './ModelMan'
 import { makeActionContext } from './util'
 
+function regDefaultDesc (modelDesc, type) {
+  let desc = modelDesc[type]
+  let modelName = modelDesc.modelName
+  let defaults = desc[modelName] || (desc[modelName] = {})
+  for(let name in desc) {
+    if (typeof desc[name] === 'function') {
+      defaults[name] = desc[name]
+      delete desc[name]
+    }
+  }
+}
+
 export default class Model {
   constructor (modelDesc) {
     let { properties, rules, mixins } = modelDesc
     let binding = modelDesc.binding
     let bindingMap = binding ? binding.propMap : {}
+
+    if (modelDesc.state) {
+      let _state = modelDesc.state
+      modelDesc.state = function () {
+        let state = {}
+        state[modelDesc.modelName] = _state()
+        return state
+      }
+    }
+
+    if (modelDesc.actions) {
+      regDefaultDesc(modelDesc, 'actions')
+    }
+    if (modelDesc.mutations) {
+      regDefaultDesc(modelDesc, 'mutations')
+    }
 
     if (!modelDesc.state) modelDesc.state = function () { return {} }
     if (!modelDesc.actions) modelDesc.actions = {}
@@ -22,7 +50,6 @@ export default class Model {
         mixinState[regState] = module.state
         modelDesc.actions[regState] = module.actions
         modelDesc.mutations[regState] = module.mutations
-
       }
     }
 
@@ -159,7 +186,6 @@ export default class Model {
 
     // add property member
     this.modelName = modelDesc.modelName
-    this.service = modelDesc.service
 
     this.getStateActions = function (state) {
       return modelDesc.actions[state]
@@ -179,7 +205,10 @@ export default class Model {
 
     this.applyAction = function (state, action, args) {
       fireBeforeDispatch(state, action, args)
-      return modelDesc.actions[state][action].apply(null, args)
+      let result = modelDesc.actions[state][action].apply(null, args)
+      if (result && result.then) {
+        return result
+      }
     }
 
     this.dispatch = function (action) {
@@ -189,16 +218,19 @@ export default class Model {
       let context = makeActionContext(
         this.getStateMutations(stateKey),
         state[stateKey],
-        this.service
+        this.dispatch.bind(this)
       )
 
       const BIZ_PARAM_INDEX = 1
       let args = Array.from(arguments).slice(BIZ_PARAM_INDEX)
       args.unshift(context)
 
-      return this.applyAction(stateKey, action, args).then(() => {
-        return state
-      })
+      let result = this.applyAction(stateKey, action, args)
+      if(result && result.then) {
+        return result.then(() => {
+          return state
+        })
+      }
     }
 
     this.dispatchAll = function (fn) {
@@ -223,7 +255,7 @@ export default class Model {
         let context = makeActionContext(
           this.getStateMutations(stateKey),
           state[stateKey],
-          this.service
+          this.dispatch.bind(this)
         )
         args.unshift(context)
 

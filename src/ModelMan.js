@@ -1,5 +1,6 @@
 import Model from './Model'
 import { makeActionContext } from './util'
+import writerState from './writerState'
 
 let modelStore = {}
 export default {
@@ -26,49 +27,56 @@ export default {
       let vm = this
       let config = this.$options.modello
       if (!config) return
+
       let models = [].concat(config)
 
       let existsDefaultModel = false
       models.forEach((modelOption) => {
         let { model, states } = modelOption
+        if (typeof model === 'string') {
+          model = modelStore[model]
+        }
 
-        if (!states) states = []
-
+        if (!states) states = [model.modelName]
 
         // action ({dispatch: Fuction(mutation, ...args), state, service})
         // convert action as Vue method
         let methods = {}
         states.forEach(function (state) {
-          let actions = model.getStateActions(state)
           let mutations = model.getStateMutations(state)
-          Object.keys(actions).forEach(function (action) {
-            methods[action] = function () {
-              let context = makeActionContext(
-                mutations,
-                vm.$get(state),
-                model.service
-              )
 
-              let args = Array.from(arguments)
-              args.unshift(context)
+          let dispatch = function (action) {
+            let context = makeActionContext(
+              mutations,
+              vm.$get(state),
+              dispatch
+            )
 
-              vm.$emit('modello:' + model.modelName + '.' + action + ':before')
-              var result = model.applyAction(state, action, args)
-              if (result && result.then){
-                return result.then(function () {
-                  vm.$emit('modello:' + model.modelName + '.' + action + ':after')
-                })
-              } else {
+            let args = Array.from(arguments)
+            args.unshift(context)
+
+            vm.$emit('modello:' + model.modelName + '.' + action + ':before')
+            var result = model.applyAction(state, action, args)
+            if (result && result.then) {
+              return result.then(function () {
                 vm.$emit('modello:' + model.modelName + '.' + action + ':after')
-              }
+              })
+            } else {
+              vm.$emit('modello:' + model.modelName + '.' + action + ':after')
             }
+          }
+
+          let makeActionDispatcher = function (action) {
+            return function () {
+              return dispatch(action)
+            }
+          }
+
+          let actions = model.getStateActions(state)
+          Object.keys(actions).forEach(function (action) {
+            methods[action] = makeActionDispatcher(action)
           })
         })
-
-        let service = model.service
-        for(let name in service) {
-          methods[name] = service[name]
-        }
 
         if((modelOption.default || models.length === 1)
             && !existsDefaultModel){
@@ -87,10 +95,40 @@ export default {
 
       let result = {}
       models.forEach((option) => {
-        Object.assign(result, option.model.getState(option.states))
+        let model = option.model
+        if (typeof model === 'string') {
+          model = modelStore[model]
+        }
+        Object.assign(result, model.getState(option.states))
       })
 
       return result
-    }
+    },
+    created () {
+      let config = this.$options.modello
+      if (!config) return
+
+      let models = [].concat(config)
+
+      let vm = this
+
+      models.forEach(function (option) {
+        let states = option.states
+        if (!states) {
+          let modelName = option.model
+          if (typeof modelName === 'object') modelName = model.modelName
+          states = [modelName]
+        }
+
+        states.forEach(function (state) {
+          let cb = function () {
+            if (!writerState.isVModelDirWriting && !writerState.isMutationWriting) {
+              console.warn('[vue-modello] update state directly is deprecated!')
+            }
+          }
+          vm.$watch(state,  cb, {deep: true})
+        }) // states.forEach
+      }) // models.forEach
+    } // created
   }
 }

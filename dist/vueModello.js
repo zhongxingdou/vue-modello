@@ -4,88 +4,46 @@
   (global.VueModello = factory());
 }(this, function () { 'use strict';
 
-  function makeActionContext(mutations, state, service) {
+  var writerState = {
+    isVModelDirWriting: false,
+    isMutationWriting: false
+  };
+
+  function makeActionContext(mutations, state, dispatch) {
     return {
       state: state,
-      service: service,
-      dispatch: function dispatch(mutationName) {
+      dispatch: dispatch,
+      commit: function commit(mutationName) {
         if (mutations.hasOwnProperty(mutationName)) {
           var args = Array.from(arguments);
           args.shift(); // mutation name
           args.unshift(state);
 
-          return mutations[mutationName].apply(null, args);
+          var result = null;
+          try {
+            writerState.isMutationWriting = true;
+            result = mutations[mutationName].apply(null, args);
+          } finally {
+            writerState.isMutationWriting = false;
+          }
+
+          return result;
         }
       }
     };
   }
 
-  var jsx = function () {
-    var REACT_ELEMENT_TYPE = typeof Symbol === "function" && Symbol.for && Symbol.for("react.element") || 0xeac7;
-    return function createRawReactElement(type, props, key, children) {
-      var defaultProps = type && type.defaultProps;
-      var childrenLength = arguments.length - 3;
-
-      if (!props && childrenLength !== 0) {
-        props = {};
-      }
-
-      if (props && defaultProps) {
-        for (var propName in defaultProps) {
-          if (props[propName] === void 0) {
-            props[propName] = defaultProps[propName];
-          }
-        }
-      } else if (!props) {
-        props = defaultProps || {};
-      }
-
-      if (childrenLength === 1) {
-        props.children = children;
-      } else if (childrenLength > 1) {
-        var childArray = Array(childrenLength);
-
-        for (var i = 0; i < childrenLength; i++) {
-          childArray[i] = arguments[i + 3];
-        }
-
-        props.children = childArray;
-      }
-
-      return {
-        $$typeof: REACT_ELEMENT_TYPE,
-        type: type,
-        key: key === undefined ? null : '' + key,
-        ref: null,
-        props: props,
-        _owner: null
-      };
-    };
-  }();
+  var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
+    return typeof obj;
+  } : function (obj) {
+    return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj;
+  };
 
   var classCallCheck = function (instance, Constructor) {
     if (!(instance instanceof Constructor)) {
       throw new TypeError("Cannot call a class as a function");
     }
   };
-
-  var createClass = function () {
-    function defineProperties(target, props) {
-      for (var i = 0; i < props.length; i++) {
-        var descriptor = props[i];
-        descriptor.enumerable = descriptor.enumerable || false;
-        descriptor.configurable = true;
-        if ("value" in descriptor) descriptor.writable = true;
-        Object.defineProperty(target, descriptor.key, descriptor);
-      }
-    }
-
-    return function (Constructor, protoProps, staticProps) {
-      if (protoProps) defineProperties(Constructor.prototype, protoProps);
-      if (staticProps) defineProperties(Constructor, staticProps);
-      return Constructor;
-    };
-  }();
 
   var _extends = Object.assign || function (target) {
     for (var i = 1; i < arguments.length; i++) {
@@ -101,44 +59,6 @@
     return target;
   };
 
-  var slicedToArray = function () {
-    function sliceIterator(arr, i) {
-      var _arr = [];
-      var _n = true;
-      var _d = false;
-      var _e = undefined;
-
-      try {
-        for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
-          _arr.push(_s.value);
-
-          if (i && _arr.length === i) break;
-        }
-      } catch (err) {
-        _d = true;
-        _e = err;
-      } finally {
-        try {
-          if (!_n && _i["return"]) _i["return"]();
-        } finally {
-          if (_d) throw _e;
-        }
-      }
-
-      return _arr;
-    }
-
-    return function (arr, i) {
-      if (Array.isArray(arr)) {
-        return arr;
-      } else if (Symbol.iterator in Object(arr)) {
-        return sliceIterator(arr, i);
-      } else {
-        throw new TypeError("Invalid attempt to destructure non-iterable instance");
-      }
-    };
-  }();
-
   var toConsumableArray = function (arr) {
     if (Array.isArray(arr)) {
       for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i];
@@ -149,6 +69,18 @@
     }
   };
 
+  function regDefaultDesc(modelDesc, type) {
+    var desc = modelDesc[type];
+    var modelName = modelDesc.modelName;
+    var defaults = desc[modelName] || (desc[modelName] = {});
+    for (var name in desc) {
+      if (typeof desc[name] === 'function') {
+        defaults[name] = desc[name];
+        delete desc[name];
+      }
+    }
+  }
+
   var Model = function Model(modelDesc) {
     classCallCheck(this, Model);
     var properties = modelDesc.properties;
@@ -157,6 +89,24 @@
 
     var binding = modelDesc.binding;
     var bindingMap = binding ? binding.propMap : {};
+
+    if (modelDesc.state) {
+      (function () {
+        var _state = modelDesc.state;
+        modelDesc.state = function () {
+          var state = {};
+          state[modelDesc.modelName] = _state();
+          return state;
+        };
+      })();
+    }
+
+    if (modelDesc.actions) {
+      regDefaultDesc(modelDesc, 'actions');
+    }
+    if (modelDesc.mutations) {
+      regDefaultDesc(modelDesc, 'mutations');
+    }
 
     if (!modelDesc.state) modelDesc.state = function () {
       return {};
@@ -324,7 +274,6 @@
 
     // add property member
     this.modelName = modelDesc.modelName;
-    this.service = modelDesc.service;
 
     this.getStateActions = function (state) {
       return modelDesc.actions[state];
@@ -344,22 +293,28 @@
 
     this.applyAction = function (state, action, args) {
       fireBeforeDispatch(state, action, args);
-      return modelDesc.actions[state][action].apply(null, args);
+      var result = modelDesc.actions[state][action].apply(null, args);
+      if (result && result.then) {
+        return result;
+      }
     };
 
     this.dispatch = function (action) {
       var stateKey = actionStateMap[action];
       var state = this.getState(stateKey);
 
-      var context = makeActionContext(this.getStateMutations(stateKey), state[stateKey], this.service);
+      var context = makeActionContext(this.getStateMutations(stateKey), state[stateKey], this.dispatch.bind(this));
 
       var BIZ_PARAM_INDEX = 1;
       var args = Array.from(arguments).slice(BIZ_PARAM_INDEX);
       args.unshift(context);
 
-      return this.applyAction(stateKey, action, args).then(function () {
-        return state;
-      });
+      var result = this.applyAction(stateKey, action, args);
+      if (result && result.then) {
+        return result.then(function () {
+          return state;
+        });
+      }
     };
 
     this.dispatchAll = function (fn) {
@@ -387,7 +342,7 @@
         var action = _ref.action;
         var args = _ref.args;
 
-        var context = makeActionContext(_this4.getStateMutations(stateKey), state[stateKey], _this4.service);
+        var context = makeActionContext(_this4.getStateMutations(stateKey), state[stateKey], _this4.dispatch.bind(_this4));
         args.unshift(context);
 
         return _this4.applyAction(stateKey, action, args);
@@ -445,6 +400,7 @@
         var vm = this;
         var config = this.$options.modello;
         if (!config) return;
+
         var models = [].concat(config);
 
         var existsDefaultModel = false;
@@ -452,39 +408,46 @@
           var model = modelOption.model;
           var states = modelOption.states;
 
+          if (typeof model === 'string') {
+            model = modelStore[model];
+          }
 
-          if (!states) states = [];
+          if (!states) states = [model.modelName];
 
           // action ({dispatch: Fuction(mutation, ...args), state, service})
           // convert action as Vue method
           var methods = {};
           states.forEach(function (state) {
-            var actions = model.getStateActions(state);
             var mutations = model.getStateMutations(state);
-            Object.keys(actions).forEach(function (action) {
-              methods[action] = function () {
-                var context = makeActionContext(mutations, vm.$get(state), model.service);
 
-                var args = Array.from(arguments);
-                args.unshift(context);
+            var dispatch = function dispatch(action) {
+              var context = makeActionContext(mutations, vm.$get(state), dispatch);
 
-                vm.$emit('modello:' + model.modelName + '.' + action + ':before');
-                var result = model.applyAction(state, action, args);
-                if (result && result.then) {
-                  return result.then(function () {
-                    vm.$emit('modello:' + model.modelName + '.' + action + ':after');
-                  });
-                } else {
+              var args = Array.from(arguments);
+              args.unshift(context);
+
+              vm.$emit('modello:' + model.modelName + '.' + action + ':before');
+              var result = model.applyAction(state, action, args);
+              if (result && result.then) {
+                return result.then(function () {
                   vm.$emit('modello:' + model.modelName + '.' + action + ':after');
-                }
+                });
+              } else {
+                vm.$emit('modello:' + model.modelName + '.' + action + ':after');
+              }
+            };
+
+            var makeActionDispatcher = function makeActionDispatcher(action) {
+              return function () {
+                return dispatch(action);
               };
+            };
+
+            var actions = model.getStateActions(state);
+            Object.keys(actions).forEach(function (action) {
+              methods[action] = makeActionDispatcher(action);
             });
           });
-
-          var service = model.service;
-          for (var name in service) {
-            methods[name] = service[name];
-          }
 
           if ((modelOption.default || models.length === 1) && !existsDefaultModel) {
             existsDefaultModel = true;
@@ -502,11 +465,42 @@
 
         var result = {};
         models.forEach(function (option) {
-          Object.assign(result, option.model.getState(option.states));
+          var model = option.model;
+          if (typeof model === 'string') {
+            model = modelStore[model];
+          }
+          Object.assign(result, model.getState(option.states));
         });
 
         return result;
-      }
+      },
+      created: function created() {
+        var config = this.$options.modello;
+        if (!config) return;
+
+        var models = [].concat(config);
+
+        var vm = this;
+
+        models.forEach(function (option) {
+          var states = option.states;
+          if (!states) {
+            var modelName = option.model;
+            if ((typeof modelName === 'undefined' ? 'undefined' : _typeof(modelName)) === 'object') modelName = model.modelName;
+            states = [modelName];
+          }
+
+          states.forEach(function (state) {
+            var cb = function cb() {
+              if (!writerState.isVModelDirWriting && !writerState.isMutationWriting) {
+                console.warn('[vue-modello] update state directly is deprecated!');
+              }
+            };
+            vm.$watch(state, cb, { deep: true });
+          }); // states.forEach
+        }); // models.forEach
+      } // created
+
     }
   };
 
