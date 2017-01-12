@@ -17,11 +17,38 @@
       <ul>
         <li v-for="course in Student.courses"> {{ course }}</li>
       </ul>
+
+      <ul>
+        <li v-for="fav in person.favorites"> {{ fav }}</li>
+      </ul>
+      <button @click="$model.loadFavs">load</button>
     </div>
     <script>
       Vue.mixin(VueModello.vueMixin)
 
+      var PersonModel = {
+        state: function () {
+          return {
+            favorites: []
+          }
+        },
+        actions: {
+          loadFavs ({ commit }) {
+            let favs = ['dancing', 'singing']
+            commit('updateFavs', favs)
+          }
+        },
+        mutations: {
+          updateFavs (state, favs) {
+            state.favorites = favs
+          }
+        }
+      }
+
       var StudentModel = {
+        mixins: {
+          person: PersonModel
+        },
         modelName: 'Student',
         state: function () {
           return {
@@ -72,7 +99,8 @@
       new Vue({
         el: '#demo',
         modello: {
-          model: 'Student'
+          model: 'Student',
+          states: ['person']
         },
         filters: {
           gender (val) {

@@ -37,7 +37,8 @@ export default {
           model = modelStore[model]
         }
 
-        if (!states) states = [model.modelName]
+        if (!states) states = []
+        states.unshift(model.modelName)
 
         // action ({dispatch: Fuction(mutation, ...args), state, service})
         // convert action as Vue method
@@ -99,7 +100,11 @@ export default {
         if (typeof model === 'string') {
           model = modelStore[model]
         }
-        Object.assign(result, model.getState(option.states))
+
+        let states = option.states
+        if (states) states.unshift(model.modelName)
+
+        Object.assign(result, model.getState(states))
       })
 
       return result
@@ -113,12 +118,11 @@ export default {
       let vm = this
 
       models.forEach(function (option) {
-        let states = option.states
-        if (!states) {
-          let modelName = option.model
-          if (typeof modelName === 'object') modelName = model.modelName
-          states = [modelName]
-        }
+        let states = option.states || []
+
+        let modelName = option.model
+        if (typeof modelName === 'object') modelName = model.modelName
+        states.unshift(modelName)
 
         states.forEach(function (state) {
           let cb = function () {

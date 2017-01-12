@@ -412,7 +412,8 @@
             model = modelStore[model];
           }
 
-          if (!states) states = [model.modelName];
+          if (!states) states = [];
+          states.unshift(model.modelName);
 
           // action ({dispatch: Fuction(mutation, ...args), state, service})
           // convert action as Vue method
@@ -469,7 +470,11 @@
           if (typeof model === 'string') {
             model = modelStore[model];
           }
-          Object.assign(result, model.getState(option.states));
+
+          var states = option.states;
+          if (states) states.unshift(model.modelName);
+
+          Object.assign(result, model.getState(states));
         });
 
         return result;
@@ -483,12 +488,11 @@
         var vm = this;
 
         models.forEach(function (option) {
-          var states = option.states;
-          if (!states) {
-            var modelName = option.model;
-            if ((typeof modelName === 'undefined' ? 'undefined' : _typeof(modelName)) === 'object') modelName = model.modelName;
-            states = [modelName];
-          }
+          var states = option.states || [];
+
+          var modelName = option.model;
+          if ((typeof modelName === 'undefined' ? 'undefined' : _typeof(modelName)) === 'object') modelName = model.modelName;
+          states.unshift(modelName);
 
           states.forEach(function (state) {
             var cb = function cb() {
