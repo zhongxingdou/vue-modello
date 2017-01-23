@@ -1,6 +1,6 @@
 {
   "name": "vue-modello",
-  "version": "0.6.2",
+  "version": "1.0.0",
   "description": "vue model",
   "main": "dist/vueModello.js",
   "directories": {
@@ -30,6 +30,7 @@
     "babel-register": "^6.9.0",
     "babelrc-rollup": "^1.1.0",
     "better-assert": "^1.0.2",
+    "mocha": "^3.2.0",
     "rollup": "^0.34.7",
     "rollup-plugin-babel": "^2.5.0",
     "should": "^9.0.0",
