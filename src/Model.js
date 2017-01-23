@@ -13,12 +13,24 @@ function regDefaultDesc (modelDesc, type) {
   }
 }
 
+let eventMap = {}
 export default class Model {
-  constructor (modelDesc) {
-    let { properties, rules, mixins } = modelDesc
-    let binding = modelDesc.binding
-    let bindingMap = binding ? binding.propMap : {}
+  static on (event, handler) {
+    eventMap[event] = eventMap[event] || []
+    eventMap[event].push(handler)
+  }
 
+  static fire (event, ...args) {
+    let observers = eventMap[event]
+    if (observers) {
+      observers.forEach(o => o(...args))
+    }
+  }
+
+  constructor (modelDesc) {
+    Model.fire('init', modelDesc)
+
+    let { mixins } = modelDesc
     if (modelDesc.state) {
       let _state = modelDesc.state
       modelDesc.state = function () {
@@ -34,14 +46,17 @@ export default class Model {
     if (modelDesc.mutations) {
       regDefaultDesc(modelDesc, 'mutations')
     }
+    if (modelDesc.watch) {
+      regDefaultDesc(modelDesc, 'watch')
+    }
 
     if (!modelDesc.state) modelDesc.state = function () { return {} }
     if (!modelDesc.actions) modelDesc.actions = {}
     if (!modelDesc.mutations) modelDesc.mutations = {}
+    if (!modelDesc.watch) modelDesc.watch = {}
 
-    // collect defaults and labels
+    // collect defaults
     let defaultState = {}
-    let labels = {}
 
     let mixinState = {}
     if (mixins) {
@@ -50,6 +65,7 @@ export default class Model {
         mixinState[regState] = module.state
         modelDesc.actions[regState] = module.actions
         modelDesc.mutations[regState] = module.mutations
+        modelDesc.watch[regState] = module.watch
       }
     }
 
@@ -69,142 +85,37 @@ export default class Model {
       return result
     }
 
-    let getBindingModel = function () {
-      return binding ? ModelMan.get(binding.modelName) : null
-    }
-
-    for (let prop in properties) {
-      let propDesc = properties[prop]
-
-      labels[prop] = propDesc.label || ''
-
-      let Type = propDesc.type
-      if (propDesc.hasOwnProperty('defaultValue')) {
-        defaultState[prop] = propDesc.defaultValue
-      } else if(!bindingMap.hasOwnProperty(prop)){
-        if (Array.isArray(Type)) {
-          defaultState[prop] = []
-        } else {
-          let value = undefined
-          switch (Type) {
-            case String:
-              value = ''
-              break
-            case Number:
-              value = 0
-              break
-            case Boolean:
-              value = true
-              break
-          }
-          if (value !== undefined) {
-            defaultState[prop] = value
-          }
-        }
-      }
-    }
-
-    // methods for rule
-    this.getPropRule = function (prop) {
-      let rule = rules ? rules[prop] : undefined
-
-      let mapProp = bindingMap[prop]
-      if (mapProp) {
-        let bindingModel = getBindingModel()
-        if (bindingModel) {
-          let bindingRule = bindingModel.getPropRule(mapProp)
-          if (bindingRule) {
-            return { ...bindingRule, ...rule }
-          }
-        }
-      }
-
-      return rule
-    }
-
-    this.getRules = function (props) {
-      if (typeof props === 'string') props = [props]
-      if (!Array.isArray(props)) props = Object.keys(properties)
-      let rules = {}
-      props.forEach((prop) => {
-        rules[prop] = this.getPropRule(prop)
-      })
-      return rules
-    }
-
-    // methods for label
-    this.getPropLabel = function (prop) {
-      let label = labels[prop]
-      if (label) return label
-
-      let mapProp = bindingMap[prop]
-      if (mapProp) {
-        let bindingModel = getBindingModel()
-        if (bindingModel) {
-          return bindingModel.getPropLabel(mapProp)
-        }
-      }
-
-      return ''
-    }
-
-    this.getLabels = function () {
-      return Object.keys(properties).map((prop) => this.getPropLabel(prop))
-    }
-
-    // methods for defaults
-    // priority: self defined > model binding > auto make
-    this.getPropDefaults = function (prop) {
-      let propDesc = properties[prop]
-      if (propDesc.hasOwnProperty('defaultValue')) {
-        return propDesc.defaultValue
-      }
-
-      let mapProp = bindingMap[prop]
-      if (mapProp) {
-        let bindingModel = getBindingModel()
-        if (bindingModel) {
-          let defaults = bindingModel.getPropDefaults(mapProp)
-          if (defaults !== undefined) return defaults
-        }
-      }
-
-      if (prop in defaultState) {
-        return defaultState[prop]
-      }
-
-      return undefined
-    }
-
-    this.defaults = function () {
-      let defaults = {}
-      Object.keys(properties).forEach((prop) => {
-        defaults[prop] = this.getPropDefaults(prop)
-      })
-      return defaults
-    }
-
-    // add property member
     this.modelName = modelDesc.modelName
 
     this.getStateActions = function (state) {
       return modelDesc.actions[state]
     }
 
-    let beforeDispatchHanlers = []
-    this.beforeDispatch = function (handler) {
-      beforeDispatchHanlers.push(handler)
-    }
+    this.eachStateWatch = function (handle) {
+      for(let state in modelDesc.watch) {
+        let stateWatch = modelDesc.watch[state]
+        if (!stateWatch) continue
+        handle(state, function (eachWatcher) {
+          for(let path in stateWatch) {
+            let val = stateWatch[path]
+            let handler = null
+            let option = {}
 
-    function fireBeforeDispatch () {
-      let args = arguments
-      beforeDispatchHanlers.forEach(function () {
-        handler.apply(null, args)
-      })
+            if (typeof val === 'function') {
+              handler = val
+            } else { // object
+              option = {...val}
+              handler = option.handler
+              delete option.handler
+            }
+
+            eachWatcher(path, handler, option)
+          }
+        })
+      }
     }
 
     this.applyAction = function (state, action, args) {
-      fireBeforeDispatch(state, action, args)
       let result = modelDesc.actions[state][action].apply(null, args)
       if (result && result.then) {
         return result
@@ -280,5 +191,7 @@ export default class Model {
       states.forEach(s => result[s] = allState[s])
       return result
     }
+
+    Model.fire('created', this)
   }
 }
