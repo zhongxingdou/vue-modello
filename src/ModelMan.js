@@ -23,8 +23,7 @@ function makeActionDispatcher (vm, model, state) {
     args.shift()
     args.unshift(context)
 
-    // vm.$emit('modello:' + model.modelName + '.' + action + ':before')
-    var result = model.applyAction(state, action, args)
+    let result = model.applyAction(state, action, args)
     if (result && result.then) {
       return result
     }
@@ -36,19 +35,17 @@ export default {
     vue.mixin(this.vueMixin)
     vue.use(hackVueModelDirPlugin)
   },
-  on: Model.on.bind(Model),
-  Model: Model,
-  wrapVueModelDiriective: hackVueModelDirPlugin,
+
   use (plugin) {
     plugin.install(this)
   },
+
   reg (model) {
     if (!(model instanceof Model)) {
       return this.reg(new Model(model))
     }
     modelStore[model.modelName] = model
   },
-  get: getModel,
   unReg (model) {
     if (model instanceof Model) {
       delete modelStore[model.modelName]
@@ -56,6 +53,11 @@ export default {
       delete modelStore[model]
     }
   },
+
+  on: Model.on.bind(Model),
+
+  get: getModel,
+
   vueMixin: {
     init () {
       let vm = this
@@ -72,7 +74,7 @@ export default {
         if (!states) states = []
         states.unshift(model.modelName)
 
-        // action ({dispatch: Fuction(mutation, ...args), state, service})
+        // method ({commit(mutation, ...args), state, dispatch(action, ...args)}, ...args)
         // convert action as Vue method
         let methods = {}
         states.forEach(function (state) {
@@ -92,6 +94,7 @@ export default {
         }
       })
     },
+
     data () {
       let config = this.$options.modello
       if (!config) return
@@ -110,6 +113,7 @@ export default {
 
       return result
     },
+
     created () {
       let config = this.$options.modello
       if (!config) return
@@ -125,14 +129,21 @@ export default {
         let states = option.states || []
         states.unshift(model.modelName)
 
-        let cb = function () {
-          if (arguments.length === 1) return
+        let showMutateWarning = function () {
+          const isFirstMutate = arguments.length === 1
+          if (isFirstMutate) return
+
           if (!writerState.isVModelDirWriting && !writerState.isMutationWriting) {
             console.warn('[vue-modello] Do not mutate modello state outside mutation handlers.!')
           }
         }
+
         states.forEach(state => {
-          vm.$watch(state,  cb, {deep: true, immediate: true, sync: true})
+          vm.$watch(state, showMutateWarning, {
+            deep: true,
+            immediate: true,
+            sync: true
+          })
         })
 
         // handle watch
