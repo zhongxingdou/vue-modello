@@ -1,2 +1,2 @@
-import ModelMan from './ModelMan'
-export default ModelMan
+import Modello from './ModelMan'
+export default Modello
