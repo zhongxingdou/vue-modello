@@ -33,10 +33,34 @@
     };
   }
 
-  var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
-    return typeof obj;
-  } : function (obj) {
-    return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj;
+  var installed = false;
+  var hackVueModelDirPlugin = {
+    install: function install(Vue) {
+      if (installed) return;
+      installed = true;
+
+      var directive = Vue.directive('model');
+      var _bind = directive.bind;
+
+      directive.bind = function () {
+        _bind.call(this);
+
+        var _setter = this.set;
+        this.set = function () {
+          try {
+            writerState.isVModelDirWriting = true;
+
+            for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+              args[_key] = arguments[_key];
+            }
+
+            _setter.call.apply(_setter, [this].concat(args));
+          } finally {
+            writerState.isVModelDirWriting = false;
+          }
+        };
+      };
+    }
   };
 
   var classCallCheck = function (instance, Constructor) {
@@ -44,6 +68,24 @@
       throw new TypeError("Cannot call a class as a function");
     }
   };
+
+  var createClass = function () {
+    function defineProperties(target, props) {
+      for (var i = 0; i < props.length; i++) {
+        var descriptor = props[i];
+        descriptor.enumerable = descriptor.enumerable || false;
+        descriptor.configurable = true;
+        if ("value" in descriptor) descriptor.writable = true;
+        Object.defineProperty(target, descriptor.key, descriptor);
+      }
+    }
+
+    return function (Constructor, protoProps, staticProps) {
+      if (protoProps) defineProperties(Constructor.prototype, protoProps);
+      if (staticProps) defineProperties(Constructor, staticProps);
+      return Constructor;
+    };
+  }();
 
   var _extends = Object.assign || function (target) {
     for (var i = 1; i < arguments.length; i++) {
@@ -69,445 +111,439 @@
     }
   };
 
-  function regDefaultDesc(modelDesc, type) {
-    var desc = modelDesc[type];
-    var modelName = modelDesc.modelName;
-    var defaults = desc[modelName] || (desc[modelName] = {});
-    for (var name in desc) {
-      if (typeof desc[name] === 'function') {
-        defaults[name] = desc[name];
-        delete desc[name];
+  function createModel() {
+    var eventMap = {};
+    return function () {
+      createClass(Model, null, [{
+        key: 'on',
+        value: function on(event, handler) {
+          eventMap[event] = eventMap[event] || [];
+          eventMap[event].push(handler);
+        }
+      }, {
+        key: 'fire',
+        value: function fire(event) {
+          for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+            args[_key - 1] = arguments[_key];
+          }
+
+          var observers = eventMap[event];
+          if (observers) {
+            observers.forEach(function (o) {
+              return o.apply(undefined, args);
+            });
+          }
+        }
+      }]);
+
+      function Model(option) {
+        classCallCheck(this, Model);
+
+        Model.fire('init', option);
+
+        var _ = this._ = {
+          option: option,
+          actions: {},
+          mutations: {},
+          watch: {},
+          actionModMap: {}
+        };
+        var modelName = option.modelName;
+        var mixins = option.mixins;
+        var actions = _.actions;
+        var actionModMap = _.actionModMap;
+
+        // mix module
+
+        var types = ['actions', 'mutations', 'watch'];
+        types.forEach(function (type) {
+          // mix default module
+          if (option[type]) {
+            _[type][modelName] = option[type] || {};
+          }
+          // mix naming modules
+          for (var mod in mixins) {
+            _[type][mod] = mixins[mod][type] || {};
+          }
+        });
+
+        // build action-->mod map
+
+        var _loop = function _loop(mod) {
+          Object.keys(actions[mod]).forEach(function (action) {
+            actionModMap[action] = mod;
+          });
+        };
+
+        for (var mod in actions) {
+          _loop(mod);
+        }
+
+        Model.fire('created', this);
       }
-    }
+
+      createClass(Model, [{
+        key: 'state',
+
+
+        // wrap all module state() in state
+        value: function state() {
+          var result = {};
+
+          var mixins = this._.option.mixins;
+          var _state = this._.option.state;
+          if (_state) {
+            result[this.modelName] = _state();
+          }
+
+          for (var mod in mixins) {
+            result[mod] = mixins[mod].state();
+          }
+
+          return result;
+        }
+      }, {
+        key: 'getStateActions',
+        value: function getStateActions(state) {
+          return this._.actions[state];
+        }
+      }, {
+        key: 'eachStateWatch',
+        value: function eachStateWatch(handle) {
+          var watch = this._.watch;
+
+          var _loop2 = function _loop2(state) {
+            var stateWatch = watch[state];
+            if (!stateWatch) return 'continue';
+            handle(state, function (eachWatcher) {
+              for (var path in stateWatch) {
+                var val = stateWatch[path];
+                var handler = null;
+                var option = {};
+
+                if (typeof val === 'function') {
+                  handler = val;
+                } else {
+                  // object
+                  option = _extends({}, val);
+                  handler = option.handler;
+                  delete option.handler;
+                }
+
+                eachWatcher(path, handler, option);
+              }
+            });
+          };
+
+          for (var state in watch) {
+            var _ret2 = _loop2(state);
+
+            if (_ret2 === 'continue') continue;
+          }
+        }
+      }, {
+        key: 'applyAction',
+        value: function applyAction(state, action, args) {
+          var result = this._.actions[state][action].apply(null, args);
+          if (result && result.then) {
+            return result;
+          }
+        }
+      }, {
+        key: 'dispatch',
+        value: function dispatch(action) {
+          var stateKey = this._.actionModMap[action];
+          var state = this.getState(stateKey);
+
+          var context = makeActionContext(this.getStateMutations(stateKey), state[stateKey], this.dispatch.bind(this));
+
+          var BIZ_PARAM_INDEX = 1;
+          var args = Array.from(arguments).slice(BIZ_PARAM_INDEX);
+          args.unshift(context);
+
+          var result = this.applyAction(stateKey, action, args);
+          if (result && result.then) {
+            return result.then(function () {
+              return state;
+            });
+          }
+        }
+      }, {
+        key: 'dispatchAll',
+        value: function dispatchAll(fn) {
+          var _this = this;
+
+          var BIZ_PARAM_INDEX = 1;
+
+          var callers = [];
+          var subStates = new Set();
+          var actionModMap = this._.actionModMap;
+
+          function dispatch(action) {
+            var stateKey = actionModMap[action];
+            var args = Array.from(arguments).slice(BIZ_PARAM_INDEX);
+
+            callers.push({ stateKey: stateKey, action: action, args: args });
+            subStates.add(stateKey);
+          }
+
+          fn(dispatch);
+
+          var state = this.getState([].concat(toConsumableArray(subStates)));
+
+          return Promise.all(callers.map(function (_ref) {
+            var stateKey = _ref.stateKey;
+            var action = _ref.action;
+            var args = _ref.args;
+
+            var context = makeActionContext(_this.getStateMutations(stateKey), state[stateKey], _this.dispatch.bind(_this));
+            args.unshift(context);
+
+            return _this.applyAction(stateKey, action, args);
+          })).then(function () {
+            return state;
+          });
+        }
+      }, {
+        key: 'getStateMutations',
+        value: function getStateMutations(state) {
+          return this._.mutations[state];
+        }
+      }, {
+        key: 'getState',
+        value: function getState(states) {
+          var allState = this.state();
+          if (!states) {
+            return allState;
+          }
+
+          var result = {};
+          if (typeof states === 'string') {
+            states = [states];
+          }
+          states.forEach(function (s) {
+            return result[s] = allState[s];
+          });
+          return result;
+        }
+      }, {
+        key: 'modelName',
+        get: function get() {
+          return this._.option.modelName;
+        }
+      }]);
+      return Model;
+    }();
   }
 
-  var Model = function Model(modelDesc) {
-    classCallCheck(this, Model);
-    var properties = modelDesc.properties;
-    var rules = modelDesc.rules;
-    var mixins = modelDesc.mixins;
+  function makeActionDispatcher(vm, model, state) {
+    var mutations = model.getStateMutations(state);
 
-    var binding = modelDesc.binding;
-    var bindingMap = binding ? binding.propMap : {};
+    return function dispatch(action) {
+      var context = makeActionContext(mutations, vm.$get(state), dispatch);
 
-    if (modelDesc.state) {
-      (function () {
-        var _state = modelDesc.state;
-        modelDesc.state = function () {
-          var state = {};
-          state[modelDesc.modelName] = _state();
-          return state;
-        };
-      })();
-    }
-
-    if (modelDesc.actions) {
-      regDefaultDesc(modelDesc, 'actions');
-    }
-    if (modelDesc.mutations) {
-      regDefaultDesc(modelDesc, 'mutations');
-    }
-
-    if (!modelDesc.state) modelDesc.state = function () {
-      return {};
-    };
-    if (!modelDesc.actions) modelDesc.actions = {};
-    if (!modelDesc.mutations) modelDesc.mutations = {};
-
-    // collect defaults and labels
-    var defaultState = {};
-    var labels = {};
-
-    var mixinState = {};
-    if (mixins) {
-      for (var regState in mixins) {
-        var module = mixins[regState];
-        mixinState[regState] = module.state;
-        modelDesc.actions[regState] = module.actions;
-        modelDesc.mutations[regState] = module.mutations;
-      }
-    }
-
-    var actionStateMap = {};
-
-    var _loop = function _loop(state) {
-      Object.keys(modelDesc.actions[state]).forEach(function (name) {
-        actionStateMap[name] = state;
-      });
-    };
-
-    for (var state in modelDesc.actions) {
-      _loop(state);
-    }
-
-    var oldState = modelDesc.state;
-    modelDesc.state = function () {
-      var result = oldState();
-      for (var _regState in mixinState) {
-        result[_regState] = mixinState[_regState]();
-      }
-      return result;
-    };
-
-    var getBindingModel = function getBindingModel() {
-      return binding ? ModelMan.get(binding.modelName) : null;
-    };
-
-    for (var prop in properties) {
-      var propDesc = properties[prop];
-
-      labels[prop] = propDesc.label || '';
-
-      var Type = propDesc.type;
-      if (propDesc.hasOwnProperty('defaultValue')) {
-        defaultState[prop] = propDesc.defaultValue;
-      } else if (!bindingMap.hasOwnProperty(prop)) {
-        if (Array.isArray(Type)) {
-          defaultState[prop] = [];
-        } else {
-          var value = undefined;
-          switch (Type) {
-            case String:
-              value = '';
-              break;
-            case Number:
-              value = 0;
-              break;
-            case Boolean:
-              value = true;
-              break;
-          }
-          if (value !== undefined) {
-            defaultState[prop] = value;
-          }
-        }
-      }
-    }
-
-    // methods for rule
-    this.getPropRule = function (prop) {
-      var rule = rules ? rules[prop] : undefined;
-
-      var mapProp = bindingMap[prop];
-      if (mapProp) {
-        var bindingModel = getBindingModel();
-        if (bindingModel) {
-          var bindingRule = bindingModel.getPropRule(mapProp);
-          if (bindingRule) {
-            return _extends({}, bindingRule, rule);
-          }
-        }
-      }
-
-      return rule;
-    };
-
-    this.getRules = function (props) {
-      var _this = this;
-
-      if (typeof props === 'string') props = [props];
-      if (!Array.isArray(props)) props = Object.keys(properties);
-      var rules = {};
-      props.forEach(function (prop) {
-        rules[prop] = _this.getPropRule(prop);
-      });
-      return rules;
-    };
-
-    // methods for label
-    this.getPropLabel = function (prop) {
-      var label = labels[prop];
-      if (label) return label;
-
-      var mapProp = bindingMap[prop];
-      if (mapProp) {
-        var bindingModel = getBindingModel();
-        if (bindingModel) {
-          return bindingModel.getPropLabel(mapProp);
-        }
-      }
-
-      return '';
-    };
-
-    this.getLabels = function () {
-      var _this2 = this;
-
-      return Object.keys(properties).map(function (prop) {
-        return _this2.getPropLabel(prop);
-      });
-    };
-
-    // methods for defaults
-    // priority: self defined > model binding > auto make
-    this.getPropDefaults = function (prop) {
-      var propDesc = properties[prop];
-      if (propDesc.hasOwnProperty('defaultValue')) {
-        return propDesc.defaultValue;
-      }
-
-      var mapProp = bindingMap[prop];
-      if (mapProp) {
-        var bindingModel = getBindingModel();
-        if (bindingModel) {
-          var defaults = bindingModel.getPropDefaults(mapProp);
-          if (defaults !== undefined) return defaults;
-        }
-      }
-
-      if (prop in defaultState) {
-        return defaultState[prop];
-      }
-
-      return undefined;
-    };
-
-    this.defaults = function () {
-      var _this3 = this;
-
-      var defaults = {};
-      Object.keys(properties).forEach(function (prop) {
-        defaults[prop] = _this3.getPropDefaults(prop);
-      });
-      return defaults;
-    };
-
-    // add property member
-    this.modelName = modelDesc.modelName;
-
-    this.getStateActions = function (state) {
-      return modelDesc.actions[state];
-    };
-
-    var beforeDispatchHanlers = [];
-    this.beforeDispatch = function (handler) {
-      beforeDispatchHanlers.push(handler);
-    };
-
-    function fireBeforeDispatch() {
-      var args = arguments;
-      beforeDispatchHanlers.forEach(function () {
-        handler.apply(null, args);
-      });
-    }
-
-    this.applyAction = function (state, action, args) {
-      fireBeforeDispatch(state, action, args);
-      var result = modelDesc.actions[state][action].apply(null, args);
-      if (result && result.then) {
-        return result;
-      }
-    };
-
-    this.dispatch = function (action) {
-      var stateKey = actionStateMap[action];
-      var state = this.getState(stateKey);
-
-      var context = makeActionContext(this.getStateMutations(stateKey), state[stateKey], this.dispatch.bind(this));
-
-      var BIZ_PARAM_INDEX = 1;
-      var args = Array.from(arguments).slice(BIZ_PARAM_INDEX);
+      var args = Array.from(arguments);
+      args.shift();
       args.unshift(context);
 
-      var result = this.applyAction(stateKey, action, args);
+      var result = model.applyAction(state, action, args);
       if (result && result.then) {
-        return result.then(function () {
-          return state;
-        });
-      }
-    };
-
-    this.dispatchAll = function (fn) {
-      var _this4 = this;
-
-      var BIZ_PARAM_INDEX = 1;
-
-      var callers = [];
-      var subStates = new Set();
-
-      function dispatch(action) {
-        var stateKey = actionStateMap[action];
-        var args = Array.from(arguments).slice(BIZ_PARAM_INDEX);
-
-        callers.push({ stateKey: stateKey, action: action, args: args });
-        subStates.add(stateKey);
-      }
-
-      fn(dispatch);
-
-      var state = this.getState([].concat(toConsumableArray(subStates)));
-
-      return Promise.all(callers.map(function (_ref) {
-        var stateKey = _ref.stateKey;
-        var action = _ref.action;
-        var args = _ref.args;
-
-        var context = makeActionContext(_this4.getStateMutations(stateKey), state[stateKey], _this4.dispatch.bind(_this4));
-        args.unshift(context);
-
-        return _this4.applyAction(stateKey, action, args);
-      })).then(function () {
-        return state;
-      });
-    };
-
-    this.getStateMutations = function (state) {
-      return modelDesc.mutations[state];
-    };
-
-    this.getState = function (states) {
-      var allState = modelDesc.state();
-      if (!states) {
-        return allState;
-      }
-
-      var result = {};
-      if (typeof states === 'string') {
-        states = [states];
-      }
-      states.forEach(function (s) {
-        return result[s] = allState[s];
-      });
-      return result;
-    };
-  };
-
-  var modelStore = {};
-  var ModelMan = {
-    Model: Model,
-    reg: function reg(model) {
-      if (!(model instanceof Model)) {
-        return this.reg(new Model(model));
-      }
-
-      modelStore[model.modelName] = model;
-    },
-    get: function get(modelName) {
-      return modelStore[modelName];
-    },
-    unReg: function unReg(model) {
-      if (model instanceof Model) {
-        delete modelStore[model.modelName];
-      } else if (typeof model === 'string') {
-        delete modelStore[model];
-      }
-    },
-
-    vueMixin: {
-      init: function init() {
-        var _this = this;
-
-        var vm = this;
-        var config = this.$options.modello;
-        if (!config) return;
-
-        var models = [].concat(config);
-
-        var existsDefaultModel = false;
-        models.forEach(function (modelOption) {
-          var model = modelOption.model;
-          var states = modelOption.states;
-
-          if (typeof model === 'string') {
-            model = modelStore[model];
-          }
-
-          if (!states) states = [];
-          states.unshift(model.modelName);
-
-          // action ({dispatch: Fuction(mutation, ...args), state, service})
-          // convert action as Vue method
-          var methods = {};
-          states.forEach(function (state) {
-            var mutations = model.getStateMutations(state);
-
-            var dispatch = function dispatch(action) {
-              var context = makeActionContext(mutations, vm.$get(state), dispatch);
-
-              var args = Array.from(arguments);
-              args.unshift(context);
-
-              vm.$emit('modello:' + model.modelName + '.' + action + ':before');
-              var result = model.applyAction(state, action, args);
-              if (result && result.then) {
-                return result.then(function () {
-                  vm.$emit('modello:' + model.modelName + '.' + action + ':after');
-                });
-              } else {
-                vm.$emit('modello:' + model.modelName + '.' + action + ':after');
-              }
-            };
-
-            var makeActionDispatcher = function makeActionDispatcher(action) {
-              return function () {
-                return dispatch(action);
-              };
-            };
-
-            var actions = model.getStateActions(state);
-            Object.keys(actions).forEach(function (action) {
-              methods[action] = makeActionDispatcher(action);
-            });
-          });
-
-          if ((modelOption.default || models.length === 1) && !existsDefaultModel) {
-            existsDefaultModel = true;
-            _this.$model = methods;
-          } else {
-            _this[model.modelName] = methods;
-          }
-        });
-      },
-      data: function data() {
-        var config = this.$options.modello;
-        if (!config) return;
-
-        var models = [].concat(config);
-
-        var result = {};
-        models.forEach(function (option) {
-          var model = option.model;
-          if (typeof model === 'string') {
-            model = modelStore[model];
-          }
-
-          var states = option.states;
-          if (states) states.unshift(model.modelName);
-
-          Object.assign(result, model.getState(states));
-        });
-
         return result;
-      },
-      created: function created() {
-        var config = this.$options.modello;
-        if (!config) return;
+      }
+    };
+  }
 
-        var models = [].concat(config);
+  var Modello = function () {
+    function Modello() {
+      classCallCheck(this, Modello);
 
-        var vm = this;
-
-        models.forEach(function (option) {
-          var states = option.states || [];
-
-          var modelName = option.model;
-          if ((typeof modelName === 'undefined' ? 'undefined' : _typeof(modelName)) === 'object') modelName = model.modelName;
-          states.unshift(modelName);
-
-          states.forEach(function (state) {
-            var cb = function cb() {
-              if (!writerState.isVModelDirWriting && !writerState.isMutationWriting) {
-                console.warn('[vue-modello] update state directly is deprecated!');
-              }
-            };
-            vm.$watch(state, cb, { deep: true });
-          }); // states.forEach
-        }); // models.forEach
-      } // created
-
+      this._ = {
+        store: {},
+        installed: false,
+        model: createModel()
+      };
     }
-  };
 
-  return ModelMan;
+    createClass(Modello, [{
+      key: 'install',
+      value: function install(vue) {
+        if (this._.installed) return;
+
+        vue.mixin(this.vueMixin());
+        vue.use(hackVueModelDirPlugin);
+
+        this._.installed = true;
+      }
+    }, {
+      key: 'getModel',
+      value: function getModel(model) {
+        return typeof model === 'string' ? this._.store[model] : model;
+      }
+    }, {
+      key: 'use',
+      value: function use(plugin) {
+        for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+          args[_key - 1] = arguments[_key];
+        }
+
+        plugin.install.apply(plugin, [this].concat(args));
+      }
+    }, {
+      key: 'reg',
+      value: function reg(model) {
+        var Model = this.Model;
+        if (!(model instanceof Model)) {
+          return this.reg(new Model(model));
+        }
+        this._.store[model.modelName] = model;
+      }
+    }, {
+      key: 'unReg',
+      value: function unReg(model) {
+        var Model = this.Model;
+        if (model instanceof Model) {
+          delete this._.store[model.modelName];
+        } else if (typeof model === 'string') {
+          delete this._.store[model];
+        }
+      }
+    }, {
+      key: 'on',
+      value: function on() {
+        var _Model;
+
+        return (_Model = this.Model).on.apply(_Model, arguments);
+      }
+    }, {
+      key: 'vueMixin',
+      value: function vueMixin() {
+        var getModel = this.getModel.bind(this);
+        return {
+          init: function init() {
+            var _this = this;
+
+            var vm = this;
+            var config = this.$options.modello;
+            if (!config) return;
+
+            var models = [].concat(config);
+
+            var existsDefaultModel = false;
+            models.forEach(function (modelOption) {
+              var model = modelOption.model;
+              var states = modelOption.states;
+
+              model = getModel(model);
+
+              if (!states) states = [];
+              states.unshift(model.modelName);
+
+              // method ({commit(mutation, ...args), state, dispatch(action, ...args)}, ...args)
+              // convert action as Vue method
+              var methods = {};
+              states.forEach(function (state) {
+                var dispatch = makeActionDispatcher(vm, model, state);
+                var actions = model.getStateActions(state);
+                for (var action in actions) {
+                  methods[action] = dispatch.bind(null, action);
+                }
+              });
+
+              if ((modelOption.default || models.length === 1) && !existsDefaultModel) {
+                existsDefaultModel = true;
+                _this.$model = methods;
+              } else {
+                _this[model.modelName] = methods;
+              }
+            });
+          },
+          data: function data() {
+            var config = this.$options.modello;
+            if (!config) return;
+
+            var models = [].concat(config);
+
+            var result = {};
+            models.forEach(function (option) {
+              var model = getModel(option.model);
+              var states = option.states || [];
+
+              states.unshift(model.modelName);
+
+              Object.assign(result, model.getState(states));
+            });
+
+            return result;
+          },
+          created: function created() {
+            var config = this.$options.modello;
+            if (!config) return;
+
+            var models = [].concat(config);
+
+            var vm = this;
+
+            models.forEach(function (option) {
+              var model = getModel(option.model);
+
+              // warning if data change is not from mutation
+              var states = option.states || [];
+              states.unshift(model.modelName);
+
+              var showMutateWarning = function showMutateWarning() {
+                var isFirstMutate = arguments.length === 1;
+                if (isFirstMutate) return;
+
+                if (!writerState.isVModelDirWriting && !writerState.isMutationWriting) {
+                  console.warn('[vue-modello] Do not mutate modello state outside mutation handlers.!');
+                }
+              };
+
+              states.forEach(function (state) {
+                vm.$watch(state, showMutateWarning, {
+                  deep: true,
+                  immediate: true,
+                  sync: true
+                });
+              });
+
+              // handle watch
+              model.eachStateWatch(function (state, watchEach) {
+                var dispatch = makeActionDispatcher(vm, model, state);
+                var statePrefix = state + '.';
+                var len = statePrefix.length;
+
+                watchEach(function (path, handler, option) {
+                  var listenOrWatch = vm.$listen ? '$listen' : '$watch';
+                  vm[listenOrWatch](statePrefix + path, function (val, oldVal, path) {
+                    var mutations = model.getStateMutations(state);
+                    var context = makeActionContext(mutations, vm.$get(state), dispatch);
+
+                    if (path) {
+                      path = {
+                        absolute: path.absolute.substr(len),
+                        relative: path.relative
+                      };
+                    }
+
+                    handler(context, val, oldVal, path);
+                  }, option);
+                }); // end for stateWatch
+              }); // end eachWatch
+            }); // models.forEach
+          } // created
+
+        };
+      }
+    }, {
+      key: 'Model',
+      get: function get() {
+        return this._.model;
+      }
+    }]);
+    return Modello;
+  }();
+
+  return Modello;
 
 }));
