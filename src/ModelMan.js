@@ -116,10 +116,15 @@ export default class Modello {
           if((modelOption.default || models.length === 1)
               && !existsDefaultModel){
             existsDefaultModel = true
-            this.$model = methods
+            vm.$model = methods
           } else {
-            this[model.modelName] = methods
+            for(let m in methods) {
+              if (!vm.$model[m]) {
+                vm.$model[m] = methods[m]
+              }
+            }
           }
+          vm.$model[model.modelName] = methods
         })
       },
 
