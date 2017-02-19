@@ -148,7 +148,6 @@
           watch: {},
           actionModMap: {}
         };
-        var modelName = option.modelName;
         var mixins = option.mixins;
         var actions = _.actions;
         var actionModMap = _.actionModMap;
@@ -158,14 +157,24 @@
         var types = ['actions', 'mutations', 'watch'];
         types.forEach(function (type) {
           // mix default module
-          if (option[type]) {
-            _[type][modelName] = option[type] || {};
-          }
+          if (!option[type]) option[type] = {};
+          _[type].default = option[type];
+
           // mix naming modules
-          for (var mod in mixins) {
-            _[type][mod] = mixins[mod][type] || {};
+          for (var name in mixins) {
+            var mod = mixins[name];
+            if (!mod[type]) mod[type] = {};
+            _[type][name] = mod[type];
           }
         });
+
+        Model.fire('mixed', function (handler) {
+          handler(_.option);
+
+          for (var mod in mixins) {
+            handler(mixins[mod]);
+          }
+        }, this);
 
         // build action-->mod map
 
@@ -193,7 +202,7 @@
           var mixins = this._.option.mixins;
           var _state = this._.option.state;
           if (_state) {
-            result[this.modelName] = _state();
+            result.default = _state();
           }
 
           for (var mod in mixins) {
@@ -336,11 +345,11 @@
     }();
   }
 
-  function makeActionDispatcher(vm, model, state) {
+  function makeActionDispatcher(vm, model, state, statePath) {
     var mutations = model.getStateMutations(state);
 
     return function dispatch(action) {
-      var context = makeActionContext(mutations, vm.$get(state), dispatch);
+      var context = makeActionContext(mutations, vm.$get(statePath), dispatch);
 
       var args = Array.from(arguments);
       args.shift();
@@ -434,15 +443,24 @@
               var states = modelOption.states;
 
               model = getModel(model);
+              var modelName = model.modelName;
 
-              if (!states) states = [];
-              states.unshift(model.modelName);
+              if (!states) {
+                states = ['default'];
+              } else {
+                states = states.slice(0);
+                states.unshift('default');
+              }
 
               // method ({commit(mutation, ...args), state, dispatch(action, ...args)}, ...args)
               // convert action as Vue method
               var methods = {};
               states.forEach(function (state) {
-                var dispatch = makeActionDispatcher(vm, model, state);
+                var statePath = modelName;
+                if (state !== 'default') {
+                  statePath += '.' + state;
+                }
+                var dispatch = makeActionDispatcher(vm, model, state, statePath);
                 var actions = model.getStateActions(state);
                 for (var action in actions) {
                   methods[action] = dispatch.bind(null, action);
@@ -466,11 +484,14 @@
             var result = {};
             models.forEach(function (option) {
               var model = getModel(option.model);
+              var modelState = result[model.modelName] = {};
               var states = option.states || [];
 
-              states.unshift(model.modelName);
+              if (states.length) {
+                Object.assign(modelState, model.getState(states));
+              }
 
-              Object.assign(result, model.getState(states));
+              Object.assign(modelState, model.getState('default').default);
             });
 
             return result;
@@ -485,10 +506,7 @@
 
             models.forEach(function (option) {
               var model = getModel(option.model);
-
-              // warning if data change is not from mutation
-              var states = option.states || [];
-              states.unshift(model.modelName);
+              var modelName = model.modelName;
 
               var showMutateWarning = function showMutateWarning() {
                 var isFirstMutate = arguments.length === 1;
@@ -499,18 +517,22 @@
                 }
               };
 
-              states.forEach(function (state) {
-                vm.$watch(state, showMutateWarning, {
-                  deep: true,
-                  immediate: true,
-                  sync: true
-                });
+              vm.$watch(model.modelName, showMutateWarning, {
+                deep: true,
+                immediate: true,
+                sync: true
               });
 
               // handle watch
               model.eachStateWatch(function (state, watchEach) {
-                var dispatch = makeActionDispatcher(vm, model, state);
-                var statePrefix = state + '.';
+                var statePath = modelName;
+                if (state !== 'default') {
+                  statePath += '.' + state;
+                }
+
+                var dispatch = makeActionDispatcher(vm, model, state, statePath);
+
+                var statePrefix = statePath + '.';
                 var len = statePrefix.length;
 
                 watchEach(function (path, handler, option) {
