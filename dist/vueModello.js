@@ -429,8 +429,6 @@
         var getModel = this.getModel.bind(this);
         return {
           init: function init() {
-            var _this = this;
-
             var vm = this;
             var config = this.$options.modello;
             if (!config) return;
@@ -469,10 +467,15 @@
 
               if ((modelOption.default || models.length === 1) && !existsDefaultModel) {
                 existsDefaultModel = true;
-                _this.$model = methods;
+                vm.$model = methods;
               } else {
-                _this[model.modelName] = methods;
+                for (var m in methods) {
+                  if (!vm.$model[m]) {
+                    vm.$model[m] = methods[m];
+                  }
+                }
               }
+              vm.$model[model.modelName] = methods;
             });
           },
           data: function data() {
