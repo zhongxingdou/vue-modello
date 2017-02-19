@@ -25,21 +25,31 @@ export function createModel () {
         watch: {},
         actionModMap: {}
       }
-      let { modelName, mixins } = option
+      let { mixins } = option
       let { actions, actionModMap } = _
 
       // mix module
       let types = ['actions', 'mutations', 'watch']
       types.forEach(type => {
         // mix default module
-        if (option[type]) {
-          _[type][modelName] = option[type] || {}
-        }
+        if (!option[type]) option[type] = {}
+        _[type].default = option[type]
+
         // mix naming modules
-        for(let mod in mixins) {
-          _[type][mod] = mixins[mod][type] || {}
+        for(let name in mixins) {
+          let mod = mixins[name]
+          if (!mod[type]) mod[type] = {}
+          _[type][name] = mod[type]
         }
       })
+
+      Model.fire('mixed', function (handler) {
+        handler(_.option)
+
+        for(let mod in mixins) {
+          handler(mixins[mod])
+        }
+      }, this)
 
       // build action-->mod map
       for(let mod in actions) {
@@ -62,7 +72,7 @@ export function createModel () {
       let mixins = this._.option.mixins
       let _state = this._.option.state
       if (_state) {
-        result[this.modelName] = _state()
+        result.default = _state()
       }
 
       for(let mod in mixins) {

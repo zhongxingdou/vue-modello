@@ -303,7 +303,7 @@ describe('Modello', function () {
     let A = new Model(option)
 
     let args = ['a', 'b']
-    A.applyAction('Student', 'bar', args)
+    A.applyAction('default', 'bar', args)
 
     action.calledWith(...args).should.be.true()
   })
