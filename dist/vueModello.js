@@ -63,6 +63,12 @@
     }
   };
 
+  var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
+    return typeof obj;
+  } : function (obj) {
+    return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj;
+  };
+
   var classCallCheck = function (instance, Constructor) {
     if (!(instance instanceof Constructor)) {
       throw new TypeError("Cannot call a class as a function");
@@ -188,25 +194,47 @@
           _loop(mod);
         }
 
+        _.defaultStateKeys = [];
+        var defaultState = this.getDefaultState();
+        if ((typeof defaultState === 'undefined' ? 'undefined' : _typeof(defaultState)) === 'object' && defaultState) {
+          _.defaultStateKeys = Object.keys(defaultState);
+        }
+
         Model.fire('created', this);
       }
 
       createClass(Model, [{
-        key: 'state',
-
-
-        // wrap all module state() in state
-        value: function state() {
-          var result = {};
-
-          var mixins = this._.option.mixins;
+        key: 'getDefaultState',
+        value: function getDefaultState() {
           var _state = this._.option.state;
-          if (_state) {
-            result.default = _state();
+          return _state ? _state() : undefined;
+        }
+      }, {
+        key: 'getModState',
+        value: function getModState(mod) {
+          if (mod === 'default') {
+            return this.getDefaultState();
           }
 
+          var mixins = this._.option.mixins;
+          var modState = mixins[mod].state;
+          return modState ? modState() : undefined;
+        }
+
+        // wrap all module state() in state
+
+      }, {
+        key: 'state',
+        value: function state() {
+          var result = this.getDefaultState();
+          var mixins = this._.option.mixins;
+
           for (var mod in mixins) {
-            result[mod] = mixins[mod].state();
+            var modState = this.getModState(mod);
+            if (modState !== undefined) {
+              if (!result) result = {};
+              result[mod] = modState;
+            }
           }
 
           return result;
@@ -321,19 +349,33 @@
       }, {
         key: 'getState',
         value: function getState(states) {
-          var allState = this.state();
+          var _this2 = this;
+
           if (!states) {
-            return allState;
+            return this.state();
           }
 
-          var result = {};
-          if (typeof states === 'string') {
+          if (!Array.isArray(states)) {
             states = [states];
           }
-          states.forEach(function (s) {
-            return result[s] = allState[s];
-          });
-          return result;
+
+          return states.reduce(function (result, mod) {
+            var modState = _this2.getModState(mod);
+            if (modState !== undefined) {
+              if (!result) result = {};
+              if (mod === 'default') {
+                Object.assign(result, modState);
+              } else {
+                result[mod] = modState;
+              }
+            }
+            return result;
+          }, undefined);
+        }
+      }, {
+        key: 'defaultStateKeys',
+        get: function get() {
+          return this._.defaultStateKeys;
         }
       }, {
         key: 'modelName',
@@ -445,9 +487,6 @@
 
               if (!states) {
                 states = ['default'];
-              } else {
-                states = states.slice(0);
-                states.unshift('default');
               }
 
               // method ({commit(mutation, ...args), state, dispatch(action, ...args)}, ...args)
@@ -489,12 +528,10 @@
               var model = getModel(option.model);
               var modelState = result[model.modelName] = {};
               var states = option.states || [];
-
-              if (states.length) {
-                Object.assign(modelState, model.getState(states));
+              if (states.length === 0) {
+                states.unshift('default');
               }
-
-              Object.assign(modelState, model.getState('default').default);
+              Object.assign(modelState, model.getState(states));
             });
 
             return result;
@@ -542,7 +579,7 @@
                   var listenOrWatch = vm.$listen ? '$listen' : '$watch';
                   vm[listenOrWatch](statePrefix + path, function (val, oldVal, path) {
                     var mutations = model.getStateMutations(state);
-                    var context = makeActionContext(mutations, vm.$get(state), dispatch);
+                    var context = makeActionContext(mutations, vm.$get(statePath), dispatch);
 
                     if (path) {
                       path = {
@@ -568,6 +605,8 @@
     }]);
     return Modello;
   }();
+
+  Modello.VModelDiretiveWriteState = hackVueModelDirPlugin;
 
   return Modello;
 
