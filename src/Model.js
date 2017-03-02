@@ -58,25 +58,49 @@ export function createModel () {
         })
       }
 
+      _.defaultStateKeys = []
+      let defaultState = this.getDefaultState()
+      if (typeof(defaultState) === 'object' && defaultState) {
+        _.defaultStateKeys = Object.keys(defaultState)
+      }
+
       Model.fire('created', this)
+    }
+
+    get defaultStateKeys () {
+      return this._.defaultStateKeys
     }
 
     get modelName () {
       return this._.option.modelName
     }
 
-    // wrap all module state() in state
-    state () {
-      let result = {}
-
-      let mixins = this._.option.mixins
+    getDefaultState () {
       let _state = this._.option.state
-      if (_state) {
-        result.default = _state()
+      return _state ? _state() : undefined
+    }
+
+    getModState (mod) {
+      if (mod === 'default') {
+        return this.getDefaultState()
       }
 
+      let mixins = this._.option.mixins
+      let modState = mixins[mod].state
+      return modState ? modState() : undefined
+    }
+
+    // wrap all module state() in state
+    state () {
+      let result = this.getDefaultState()
+      let mixins = this._.option.mixins
+
       for(let mod in mixins) {
-        result[mod] = mixins[mod].state()
+        let modState = this.getModState(mod)
+        if (modState !== undefined) {
+          if (!result) result = {}
+          result[mod] = modState
+        }
       }
 
       return result
@@ -176,17 +200,26 @@ export function createModel () {
     }
 
     getState (states) {
-      let allState = this.state()
       if (!states) {
-        return allState
+        return this.state()
       }
 
-      let result = {}
-      if (typeof states === 'string') {
+      if (!Array.isArray(states)){
         states = [states]
       }
-      states.forEach(s => result[s] = allState[s])
-      return result
+
+      return states.reduce((result, mod) => {
+        let modState = this.getModState(mod)
+        if (modState !== undefined) {
+          if (!result) result = {}
+          if (mod === 'default') {
+            Object.assign(result, modState)
+          } else {
+            result[mod] = modState
+          }
+        }
+        return result
+      }, undefined)
     }
   }
 }
