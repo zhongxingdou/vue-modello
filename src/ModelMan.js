@@ -93,9 +93,6 @@ export default class Modello {
 
           if (!states) {
             states = ['default']
-          } else {
-            states = states.slice(0)
-            states.unshift('default')
           }
 
           // method ({commit(mutation, ...args), state, dispatch(action, ...args)}, ...args)
@@ -139,12 +136,10 @@ export default class Modello {
           let model = getModel(option.model)
           let modelState = result[model.modelName] = {}
           let states = option.states || []
-
-          if (states.length) {
-            Object.assign(modelState, model.getState(states))
+          if (states.length === 0) {
+            states.unshift('default')
           }
-
-          Object.assign(modelState, model.getState('default').default)
+          Object.assign(modelState, model.getState(states))
         })
 
         return result
@@ -195,7 +190,7 @@ export default class Modello {
                 let mutations = model.getStateMutations(state)
                 let context = makeActionContext(
                   mutations,
-                  vm.$get(state),
+                  vm.$get(statePath),
                   dispatch
                 )
 
@@ -215,3 +210,5 @@ export default class Modello {
     }
   }
 }
+
+Modello.VModelDiretiveWriteState = hackVueModelDirPlugin
