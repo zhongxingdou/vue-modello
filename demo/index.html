@@ -2,20 +2,37 @@
   <head>
     <title> vue-modello demo </title>
     <script src="./lib/vue.js"></script>
+    <script src="./vue-listen.js"></script>
+    <script src="./hyper-api-client.js"></script>
     <script src="../dist/vueModello.js"></script>
+    <script src="../node_modules/ajv/dist/ajv.min.js"></script>
+    <script src="../node_modules/jquery/dist/jquery.min.js"></script>
+
+    <style>
+    .error{
+      color: red;
+    }
+    </style>
   </head>
   <body>
+
     <div id="demo">
+      Name: <input type="text" v-model="query.name" lazy>
+      <p class="error">{{ validateError.query.name }}</p>
+      <button @click="doFindUser">查询用户</button>
+      name: {{ query.name }}
+      response.name: {{ user.name }}
+      response.age: {{ user.age }}
       <table>
         <tbody>
-          <tr v-for="student in Student.list.records">
+          <tr v-for="student in list.records">
             <td>{{ student.name }}</td>
             <td>{{ student.gender | gender }}</td>
           </tr>
         </tbody>
       </table>
       <ul>
-        <li v-for="course in Student.courses"> {{ course }}</li>
+        <li v-for="course in courses"> {{ course }}</li>
       </ul>
 
       <ul>
@@ -24,12 +41,98 @@
       <button @click="$model.loadFavs">load</button>
     </div>
     <script>
-      Vue.mixin(VueModello.vueMixin)
+      function request ({method, url, data}) {
+        /*return fetch(url, {
+          method,
+          body: JSON.stringify(data)
+        })*/
+        return jQuery.ajax({
+          url: url,
+          method: 'post',
+          dataType: 'json',
+          data: data
+        })
+      }
+
+      var ApiClient = HyperApiClient.createClient({doRequest: request})
+
+      var Modello = new VueModello()
+      Modello.use(HyperApiClient.VueModelloPlugin, {client: ApiClient})
+
+      Vue.use(Modello)
+      Vue.use(vueListen)
+
+      HyperApiClient.compiler = function () {
+        console.info('createCompiler')
+        let ajv = new Ajv({v5: true})
+        return {
+          addSchema: function () {
+            return ajv.addSchema.apply(ajv, Array.from(arguments))
+          },
+          validate: function (path, val) {
+            // let len = arguments.length
+            // if (len < 2 || path === '') {
+            //   return validate(path).catch(function (error) {
+            //     throw error.errors.reduce((error, curr) => {
+            //       error[curr.dataPath] = error[curr.path] || []
+            //       error[curr.dataPath].push(curr.message)
+            //       return error
+            //     }, {})
+            //   })
+            // } else if(len >= 2) {
+            let isValid = ajv.validate(path, val)
+            return new Promise(function (resolve, reject) {
+              isValid ? resolve() : reject(ajv.errors.map(e => e.message))
+            })
+            // }
+          }
+        }
+      }
+
+      let findUserSchema = {
+        href: 'http://localhost:12002/findUser',
+        title: 'findUser',
+        method: 'post',
+        description: 'Find user by name',
+        definitions: {
+          name: {
+            type: 'string'
+          },
+          age: {
+            type: 'number'
+          }
+        },
+        schema: {
+          $async: true,
+          properties: {
+            name: {
+              type: 'string'
+            }
+          },
+          required: ['name']
+        },
+        targetSchema: {
+          $async: true,
+          properties: {
+            name: {
+              $ref: '#/definitions/name'
+            },
+            age: {
+              $ref: '#/definitions/age'
+            }
+          }
+        }
+      }
+      ApiClient.addSchema(findUserSchema)
 
       var PersonModel = {
         state: function () {
           return {
-            favorites: []
+            favorites: [],
+            parameters: {
+              name: 'hal',
+              age: 8
+            }
           }
         },
         actions: {
@@ -42,12 +145,37 @@
           updateFavs (state, favs) {
             state.favorites = favs
           }
+        },
+        watch: {
+          parameters: function (context, val, oldVal) {
+            console.log(val, oldVal)
+          }
         }
       }
 
       var StudentModel = {
         mixins: {
           person: PersonModel
+        },
+        hyperApi: {
+          findUser: {
+            parameters: {
+              // get () {},
+              // set () {},
+              valuePath: 'query',
+              copyDefault: true,
+              validateErrorPath: 'validateError.query'
+              // setValidateError () {} // 'validateError.query'
+            },
+            result: {
+              // set () {}, // 'user'
+              valuePath: 'user',
+              copyDefault: true,
+              validateErrorPath: 'validateError.query'
+              // setValidateError () {} // 'validateError.user'
+            },
+            actionName: 'queryUser'
+          }
         },
         modelName: 'Student',
         state: function () {
@@ -57,7 +185,11 @@
               records: []
             },
             selectedStudent: null,
-            courses: []
+            courses: [],
+            validateError: {
+              query: {},
+              user: {}
+            }
           }
         },
         actions: {
@@ -78,7 +210,6 @@
             dispatch('loadMyCourse')
           },
           loadMyCourse: function ({ state, commit }) {
-            console.info(state.selectedStudent)
             let response = ['english', 'math']
             commit('updateCourses', response)
           }
@@ -94,7 +225,7 @@
         }
       }
 
-      VueModello.reg(StudentModel)
+      Modello.reg(StudentModel)
 
       new Vue({
         el: '#demo',
@@ -112,6 +243,14 @@
           //.catch(function (error) {
           // alert(error)
           //})
+        },
+        methods: {
+          doFindUser () {
+            this.$model.queryUser().catch(function (error) {
+              console.dir(error)
+              alert('请求失败')
+            })
+          }
         }
       })
     </script>

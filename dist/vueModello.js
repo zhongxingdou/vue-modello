@@ -497,16 +497,20 @@
                 if (state !== 'default') {
                   statePath += '.' + state;
                 }
-                var dispatch = makeActionDispatcher(vm, model, state, statePath);
+
                 var actions = model.getStateActions(state);
-                for (var action in actions) {
-                  methods[action] = dispatch.bind(null, action);
+
+                if (Object.keys(actions).length) {
+                  var dispatch = makeActionDispatcher(vm, model, state, statePath);
+                  for (var action in actions) {
+                    methods[action] = dispatch.bind(null, action);
+                  }
                 }
               });
 
               if ((modelOption.default || models.length === 1) && !existsDefaultModel) {
                 existsDefaultModel = true;
-                vm.$model = methods;
+                vm.$model = Object.assign({}, methods);
               } else {
                 for (var m in methods) {
                   if (!vm.$model[m]) {
@@ -514,7 +518,7 @@
                   }
                 }
               }
-              vm.$model[model.modelName] = methods;
+              vm.$model[modelName] = methods;
             });
           },
           data: function data() {
