@@ -103,17 +103,21 @@ export default class Modello {
             if (state !== 'default') {
               statePath += '.' + state
             }
-            let dispatch = makeActionDispatcher(vm, model, state, statePath)
+
             let actions = model.getStateActions(state)
-            for(let action in actions) {
-              methods[action] = dispatch.bind(null, action)
+
+            if (Object.keys(actions).length) {
+              let dispatch = makeActionDispatcher(vm, model, state, statePath)
+              for(let action in actions) {
+                methods[action] = dispatch.bind(null, action)
+              }
             }
           })
 
           if((modelOption.default || models.length === 1)
               && !existsDefaultModel){
             existsDefaultModel = true
-            vm.$model = methods
+            vm.$model = Object.assign({}, methods)
           } else {
             for(let m in methods) {
               if (!vm.$model[m]) {
@@ -121,7 +125,7 @@ export default class Modello {
               }
             }
           }
-          vm.$model[model.modelName] = methods
+          vm.$model[modelName] = methods
         })
       },
 
