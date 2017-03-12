@@ -110,9 +110,11 @@ export function createModel () {
       return this._.actions[state]
     }
 
-    eachStateWatch (handle) {
+    eachStateWatch (states, handle) {
       let watch = this._.watch
       for(let state in watch) {
+        if (!states.includes(state)) continue
+        
         let stateWatch = watch[state]
         if (!stateWatch) continue
         handle(state, function (eachWatcher) {

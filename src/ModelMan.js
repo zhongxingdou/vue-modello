@@ -161,6 +161,11 @@ export default class Modello {
           let model = getModel(option.model)
           let modelName = model.modelName
 
+          let states = option.states || []
+          if (states.length === 0) {
+            states.unshift('default')
+          }
+
           let showMutateWarning = function () {
             const isFirstMutate = arguments.length === 1
             if (isFirstMutate) return
@@ -177,7 +182,7 @@ export default class Modello {
           })
 
           // handle watch
-          model.eachStateWatch(function (state, watchEach) {
+          model.eachStateWatch(states, function (state, watchEach) {
             let statePath = modelName
             if (state !== 'default') {
               statePath += '.' + state
@@ -190,7 +195,9 @@ export default class Modello {
 
             watchEach(function (path, handler, option) {
               let listenOrWatch = vm.$listen ? '$listen' : '$watch'
-              vm[listenOrWatch](statePrefix + path, function (val, oldVal, path) {
+              let watchPath = path === '$state' ? statePath : statePrefix + path
+
+              vm[listenOrWatch](watchPath, function (val, oldVal, path) {
                 let mutations = model.getStateMutations(state)
                 let context = makeActionContext(
                   mutations,
