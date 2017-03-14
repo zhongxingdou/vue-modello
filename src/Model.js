@@ -2,19 +2,7 @@ import { makeActionContext } from './util'
 
 export function createModel () {
   let eventMap = {}
-  return class Model {
-    static on (event, handler) {
-      eventMap[event] = eventMap[event] || []
-      eventMap[event].push(handler)
-    }
-
-    static fire (event, ...args) {
-      let observers = eventMap[event]
-      if (observers) {
-        observers.forEach(o => o(...args))
-      }
-    }
-
+  class Model {
     constructor (option) {
       Model.fire('init', option)
 
@@ -32,13 +20,15 @@ export function createModel () {
       let types = ['actions', 'mutations', 'watch']
       types.forEach(type => {
         // mix default module
-        if (!option[type]) option[type] = {}
+        if (!option.hasOwnProperty(type)) {
+          option[type] = {}
+        }
         _[type].default = option[type]
 
         // mix naming modules
         for(let name in mixins) {
           let mod = mixins[name]
-          if (!mod[type]) mod[type] = {}
+          if (!mod.hasOwnProperty(type)) mod[type] = {}
           _[type][name] = mod[type]
         }
       })
@@ -114,7 +104,7 @@ export function createModel () {
       let watch = this._.watch
       for(let state in watch) {
         if (!states.includes(state)) continue
-        
+
         let stateWatch = watch[state]
         if (!stateWatch) continue
         handle(state, function (eachWatcher) {
@@ -224,4 +214,18 @@ export function createModel () {
       }, undefined)
     }
   }
+
+  Model.on = function (event, handler) {
+    eventMap[event] = eventMap[event] || []
+    eventMap[event].push(handler)
+  }
+
+  Model.fire = function (event, ...args) {
+    let observers = eventMap[event]
+    if (observers) {
+      observers.forEach(o => o(...args))
+    }
+  }
+
+  return Model
 }
