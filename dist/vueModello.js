@@ -119,29 +119,8 @@
 
   function createModel() {
     var eventMap = {};
-    return function () {
-      createClass(Model, null, [{
-        key: 'on',
-        value: function on(event, handler) {
-          eventMap[event] = eventMap[event] || [];
-          eventMap[event].push(handler);
-        }
-      }, {
-        key: 'fire',
-        value: function fire(event) {
-          for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-            args[_key - 1] = arguments[_key];
-          }
 
-          var observers = eventMap[event];
-          if (observers) {
-            observers.forEach(function (o) {
-              return o.apply(undefined, args);
-            });
-          }
-        }
-      }]);
-
+    var Model = function () {
       function Model(option) {
         classCallCheck(this, Model);
 
@@ -163,13 +142,15 @@
         var types = ['actions', 'mutations', 'watch'];
         types.forEach(function (type) {
           // mix default module
-          if (!option[type]) option[type] = {};
+          if (!option.hasOwnProperty(type)) {
+            option[type] = {};
+          }
           _[type].default = option[type];
 
           // mix naming modules
           for (var name in mixins) {
             var mod = mixins[name];
-            if (!mod[type]) mod[type] = {};
+            if (!mod.hasOwnProperty(type)) mod[type] = {};
             _[type][name] = mod[type];
           }
         });
@@ -246,10 +227,12 @@
         }
       }, {
         key: 'eachStateWatch',
-        value: function eachStateWatch(handle) {
+        value: function eachStateWatch(states, handle) {
           var watch = this._.watch;
 
           var _loop2 = function _loop2(state) {
+            if (!states.includes(state)) return 'continue';
+
             var stateWatch = watch[state];
             if (!stateWatch) return 'continue';
             handle(state, function (eachWatcher) {
@@ -385,6 +368,26 @@
       }]);
       return Model;
     }();
+
+    Model.on = function (event, handler) {
+      eventMap[event] = eventMap[event] || [];
+      eventMap[event].push(handler);
+    };
+
+    Model.fire = function (event) {
+      for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+        args[_key - 1] = arguments[_key];
+      }
+
+      var observers = eventMap[event];
+      if (observers) {
+        observers.forEach(function (o) {
+          return o.apply(undefined, args);
+        });
+      }
+    };
+
+    return Model;
   }
 
   function makeActionDispatcher(vm, model, state, statePath) {
@@ -552,6 +555,11 @@
               var model = getModel(option.model);
               var modelName = model.modelName;
 
+              var states = option.states || [];
+              if (states.length === 0) {
+                states.unshift('default');
+              }
+
               var showMutateWarning = function showMutateWarning() {
                 var isFirstMutate = arguments.length === 1;
                 if (isFirstMutate) return;
@@ -568,7 +576,7 @@
               });
 
               // handle watch
-              model.eachStateWatch(function (state, watchEach) {
+              model.eachStateWatch(states, function (state, watchEach) {
                 var statePath = modelName;
                 if (state !== 'default') {
                   statePath += '.' + state;
@@ -581,7 +589,9 @@
 
                 watchEach(function (path, handler, option) {
                   var listenOrWatch = vm.$listen ? '$listen' : '$watch';
-                  vm[listenOrWatch](statePrefix + path, function (val, oldVal, path) {
+                  var watchPath = path === '$state' ? statePath : statePrefix + path;
+
+                  vm[listenOrWatch](watchPath, function (val, oldVal, path) {
                     var mutations = model.getStateMutations(state);
                     var context = makeActionContext(mutations, vm.$get(statePath), dispatch);
 
