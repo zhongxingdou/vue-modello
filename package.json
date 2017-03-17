@@ -3,9 +3,10 @@
   "version": "2.3.2",
   "description": "vue model",
   "main": "dist/vueModello.js",
-  "directories": {
-    "test": "test"
-  },
+  "files": [
+     "src",
+     "dist"
+  ],
   "scripts": {
     "test": "mocha",
     "build": "rollup -c build/rollup.config.js",
