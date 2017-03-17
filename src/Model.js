@@ -128,6 +128,10 @@ export function createModel () {
     }
 
     applyAction (state, action, args) {
+      if (state !== 'default' && !this._.actions[state][action]) {
+        state = 'default'
+      }
+
       let result = this._.actions[state][action].apply(null, args)
       if (result && result.then) {
         return result
