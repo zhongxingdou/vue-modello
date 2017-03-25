@@ -5,6 +5,7 @@ import Modello from '../src/index'
 
 describe('Modello', function () {
   let modello = new Modello()
+
   describe.skip('Binding', function () {
     const bindingModelName = 'A'
     const modelBName = 'B'
@@ -318,5 +319,14 @@ describe('Modello', function () {
     Model.fire(event, ...args)
 
     sinon.assert.calledWith(handler, ...args)
+  })
+
+  it('should has different event map for each modello instance', function () {
+    let m1 = new Modello()
+    let m2 = new Modello()
+
+    should(m1.Model).not.be.undefined()
+    should(m2.Model).not.be.undefined()
+    should(m1.Model).not.equal(m2.Model)
   })
 })
