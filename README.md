@@ -49,9 +49,9 @@ export default {
     }
   },
   actions: {
-    uploadAvatar: function ({dispatch, service}, avatarPhoto) {
-      service.uploadImage(avatarPhoto).then((imageUrl) => {
-        dispatch('updateAvatar', imageUrl)
+    uploadAvatar: function ({dispatch, commit}, avatarPhoto) {
+      dispatch('uploadImage', avatarPhoto).then((imageUrl) => {
+        commit('updateAvatar', imageUrl)
       })
     }
   },
@@ -76,36 +76,7 @@ export default {
     student: student,
     studentList: studentList
   },
-  properties: {
-    name: {
-      label: 'Full name',
-      type: String,
-      defaultValue: ''
-    },
-    birthday: {
-      label: 'Birthday',
-      type: Date,
-      defaultValue: null
-    },
-    avatar: {
-      label: 'Avatar',
-      type: String,
-      defaultValue: ''
-    }
-  },
-  rules: {
-    name: {
-      required: true,
-      length: {
-        min: 5,
-        max: 100
-      }
-    },
-    birthday: {
-      required: true
-    }
-  },
-  service: {
+  actions: {
     getProvinces () {
       return $.post('/path/to/provinces')
     },
@@ -125,28 +96,33 @@ export default {
 import VueModello from 'vue-modello'
 import Student from './path/to/models/student/model'
 
-VueModello.reg(Student)
+let AppMedello = new VueModello()
+
+AppMedello.reg(Student)
+
+export default AppMedello
 ```
 
 ### use model in edit page
 ```javascript
-import VueModello from 'vue-modello'
-let StudentModel = VueModello.get('Student')
+import AppMedello from 'app_modello'
 
 export default {
-  mixins: [VueModello.vueMixin],
-  model: {
+  mixins: [AppMedello.vueMixin()],
+
+  modello: {
     model: StudentModel,
-    states: ['student'],
-    dataPath: 'state'
+    states: ['student']
   },
+
   data: {
-    provinces: [],
-    state: StudentModel.getState(['student'])
+    provinces: []
   },
+
   created () {
     this.$model.getProvinces().then(res => {this.provinces = res.provinces})
   },
+
   methods: {
     uploadAvatar () {
       let avatarPhoto = this.$els.avatar.files[0]
@@ -158,23 +134,20 @@ export default {
 
 ### use model in list page
 ```javascript
-import VueModello from 'vue-modello'
-let StudentModel = VueModello.get('Student')
+import AppMedello from 'app_modello'
 
 export default {
-  mixins: [VueModello.vueMixin],
-  model: {
+  mixins: [AppMedello.vueMixin()],
+  modello: {
     model: StudentModel,
-    states: ['studentList'],
-    dataPath: 'state'
+    states: ['studentList']
   },
   data: {
     pager: {
       total: 0,
       pageIndex: 1
     },
-    provinces: [],
-    state: StudentModel.getState(['studentList'])
+    provinces: []
   },
   created () {
     this.$model.loadStudentByPage(this.pager)
