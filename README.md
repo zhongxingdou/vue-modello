@@ -111,7 +111,7 @@ export default {
   mixins: [AppMedello.vueMixin()],
 
   modello: {
-    model: StudentModel,
+    model: 'Student',
     states: ['student']
   },
 
@@ -139,7 +139,7 @@ import AppMedello from 'app_modello'
 export default {
   mixins: [AppMedello.vueMixin()],
   modello: {
-    model: StudentModel,
+    model: 'Student',
     states: ['studentList']
   },
   data: {
