@@ -11,10 +11,11 @@ export function createModel () {
         actions: {},
         mutations: {},
         watch: {},
-        actionModMap: {}
+        actionModMap: {},
+        mutationModMap: {}
       }
       let { mixins } = option
-      let { actions, actionModMap } = _
+      let { actions, actionModMap, mutationModMap, mutations } = _
 
       // mix module
       let types = ['actions', 'mutations', 'watch']
@@ -45,6 +46,13 @@ export function createModel () {
       for(let mod in actions) {
         Object.keys(actions[mod]).forEach((action) => {
           actionModMap[action] = mod
+        })
+      }
+
+      // build mutation-->mod map
+      for(let mod in mutations) {
+        Object.keys(mutations[mod]).forEach((mutation) => {
+          mutationModMap[mutation] = mod
         })
       }
 
@@ -136,6 +144,22 @@ export function createModel () {
       if (result && result.then) {
         return result
       }
+    }
+
+    commitMutation (modStateName, mutation, args) {
+      if (state !== 'default' && !this._.mutations[state][mutation]) {
+        state = 'default'
+      }
+
+      let state = this.getState(modStateName)
+      args.unshift(state)
+
+      this._.mutations[state][mutation].apply(null, args)
+    }
+
+    commit (mutation, ...args) {
+      let modStateName = this._.mutationModMap[mutation]
+      this.commitMutation(modStateName, mutation, args)
     }
 
     dispatch (action) {

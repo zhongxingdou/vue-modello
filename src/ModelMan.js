@@ -1,4 +1,4 @@
-import { makeActionContext, getObjByPath, setObjByPath } from './util'
+import { makeActionContext, makeCommitFn, getObjByPath, setObjByPath } from './util'
 import writerState from './writerState'
 import hackVueModelDirPlugin from './hackVueModelDirPlugin'
 import { createModel } from './Model'
@@ -112,13 +112,15 @@ export default class Modello {
 
         let existsDefaultModel = false
         models.forEach((modelOption) => {
-          let { model } = modelOption
+          let { model, actions={}, mutations={} } = modelOption
+
           model = getModel(model)
           let states = parseOptionStates(modelOption).allStates
           let modelName = model.modelName
 
-          // method ({commit(mutation, ...args), state, dispatch(action, ...args)}, ...args)
-          // convert action as Vue method
+          // actionMethod ({commit(mutation, ...args), state, dispatch(action, ...args)}, ...args)
+          // mutationMethod (state, ...args)
+          // inject actions and mutations as Vue method
           let methods = {}
           states.forEach(function (state) {
             let statePath = modelName
@@ -126,13 +128,30 @@ export default class Modello {
               statePath += '.' + state
             }
 
-            let actions = model.getStateActions(state)
-
-            if (Object.keys(actions).length) {
+            // inject actions
+            if (actions) {
+              let stateActions = model.getStateActions(state)
+              let injectActions = actions[state] || Object.keys(stateActions)
               let dispatch = makeActionDispatcher(vm, model, state, statePath)
-              for(let action in actions) {
+
+              injectActions.forEach(action => {
                 methods[action] = dispatch.bind(null, action)
+              })
+            }
+
+            // inject mutations
+            if (mutations) {
+              let stateMutations = model.getStateMutations(state)
+              let stateCommit = function (...args) {
+                makeCommitFn(vm.$get(statePath), stateMutations)(...args)
               }
+              let injectMutations = mutations[state] || Object.keys(stateMutations)
+
+              injectMutations.forEach(mutation => {
+                if (!methods.hasOwnProperty(mutation)) {
+                  methods[mutation] = stateCommit.bind(null, mutation)
+                }
+              })
             }
           })
 

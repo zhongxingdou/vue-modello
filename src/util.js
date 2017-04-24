@@ -1,24 +1,26 @@
 import writerState from './writerState'
 
 export function makeActionContext (mutations, state, dispatch) {
+  let commit = makeCommitFn(state, mutations)
   return {
     state,
     dispatch,
-    commit (mutationName) {
-      if (mutations.hasOwnProperty(mutationName)) {
-        let args = Array.from(arguments)
-        args.shift() // mutation name
-        args.unshift(state)
+    commit
+  }
+}
 
-        let result = null
-        try {
-          writerState.isMutationWriting = true
-          result = mutations[mutationName].apply(null, args)
-        } finally {
-          writerState.isMutationWriting = false
-        }
+export function makeCommitFn (state, mutations) {
+  return function (mutationName) {
+    if (mutations.hasOwnProperty(mutationName)) {
+      let args = Array.from(arguments)
+      args.shift() // mutation name
+      args.unshift(state)
 
-        return result
+      try {
+        writerState.isMutationWriting = true
+        mutations[mutationName].apply(null, args)
+      } finally {
+        writerState.isMutationWriting = false
       }
     }
   }
