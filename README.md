@@ -1,5 +1,9 @@
 # Vue-modello
 
+## Document
+[View doc](https://zhongxingdou.gitbooks.io/vue-modello-manual/content)
+
+
 ## Install
 ```bash
 npm install vue-modello --save
