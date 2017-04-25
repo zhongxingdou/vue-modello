@@ -3,6 +3,8 @@ import writerState from './writerState'
 import hackVueModelDirPlugin from './hackVueModelDirPlugin'
 import { createModel } from './Model'
 
+const DEFAULT_MODULE = 'default'
+
 function makeActionDispatcher (vm, model, state, statePath) {
   let mutations = model.getStateMutations(state)
 
@@ -24,18 +26,39 @@ function makeActionDispatcher (vm, model, state, statePath) {
   }
 }
 
-function parseOptionStates (option) {
+// [
+//   'listPage',
+//   {
+//     newPage: ['newSupplier']
+//   },
+//   'detailpage'
+// ]
+function parseOptionStates (states = []) {
   let simpleStates = []
   let partialStates = []
   let allStates = []
   let partialStateMap = {}
 
-  let states = option.states || []
   if (states.length === 0) {
-    simpleStates.unshift('default')
+    simpleStates.unshift(DEFAULT_MODULE)
   } else {
-    simpleStates = states.filter(s => typeof(s) === 'string')
-    partialStateMap = states.filter(s => typeof s === 'object')[0] || {}
+    simpleStates = states.filter(s => {
+      let isString = typeof(s) === 'string'
+      return isString && !s.includes('.')
+    })
+
+    states.forEach(s => {
+      let sType = typeof(s)
+      if (sType === 'object') {
+        Object.assign(partialStateMap, s)
+      } else if(sType === 'string' && s.includes('.')) {
+        let pathes = s.split('.')
+        let moduleName = pathes.shift()
+        let moduleStates = partialStateMap[moduleName] || (partialStateMap[moduleName]=[])
+        moduleStates.push(pathes.join('.'))
+      }
+    })
+
     partialStates = Object.keys(partialStateMap)
   }
 
@@ -106,25 +129,33 @@ export default class Modello {
       init () {
         let vm = this
         let config = this.$options.modello
+        let computed = this.$options.computed || (this.$options.computed = {})
         if (!config) return
 
         let models = [].concat(config)
 
         let existsDefaultModel = false
         models.forEach((modelOption) => {
-          let { model, actions={}, mutations={} } = modelOption
+          let { model, actions={}, mutations={}, getters={} } = modelOption
 
           model = getModel(model)
-          let states = parseOptionStates(modelOption).allStates
+          let states = parseOptionStates(modelOption.states).allStates
           let modelName = model.modelName
 
+          // inject computed
+          if (getters) {
+            for(let computedName in getters) {
+              let stateName = computedName.split('.')[0]
+              computed[computedName] = new Function('return this.' + modelName + '.' + getters[computedName])
+            }
+          }
           // actionMethod ({commit(mutation, ...args), state, dispatch(action, ...args)}, ...args)
           // mutationMethod (state, ...args)
           // inject actions and mutations as Vue method
           let methods = {}
           states.forEach(function (state) {
             let statePath = modelName
-            if (state !== 'default') {
+            if (state !== DEFAULT_MODULE) {
               statePath += '.' + state
             }
 
@@ -132,26 +163,30 @@ export default class Modello {
             if (actions) {
               let stateActions = model.getStateActions(state)
               let injectActions = actions[state] || Object.keys(stateActions)
-              let dispatch = makeActionDispatcher(vm, model, state, statePath)
+              if (injectActions.length) {
+                let dispatch = makeActionDispatcher(vm, model, state, statePath)
 
-              injectActions.forEach(action => {
-                methods[action] = dispatch.bind(null, action)
-              })
+                injectActions.forEach(action => {
+                  methods[action] = dispatch.bind(null, action)
+                })
+              }
             }
 
             // inject mutations
             if (mutations) {
               let stateMutations = model.getStateMutations(state)
-              let stateCommit = function (...args) {
-                makeCommitFn(vm.$get(statePath), stateMutations)(...args)
-              }
               let injectMutations = mutations[state] || Object.keys(stateMutations)
 
-              injectMutations.forEach(mutation => {
-                if (!methods.hasOwnProperty(mutation)) {
-                  methods[mutation] = stateCommit.bind(null, mutation)
+              if (injectMutations.length) {
+                let stateCommit = function (...args) {
+                  makeCommitFn(vm.$get(statePath), stateMutations)(...args)
                 }
-              })
+                injectMutations.forEach(mutation => {
+                  if (!methods.hasOwnProperty(mutation)) {
+                    methods[mutation] = stateCommit.bind(null, mutation)
+                  }
+                })
+              }
             }
           })
 
@@ -180,19 +215,29 @@ export default class Modello {
         models.forEach((option) => {
           let model = getModel(option.model)
           let modelState = result[model.modelName] = {}
-          let { simpleStates, partialStateMap } = parseOptionStates(option)
+          let { simpleStates, partialStateMap } = parseOptionStates(option.states)
 
           // states: [{newPage: ['workorder', 'xxxx'}]
           for(let mod in partialStateMap) {
+            let isDefaultMod = mod === DEFAULT_MODULE
+            let modState, filterState, setTarget
 
-            let modState = model.getState(mod)[mod]
-            let filterState = {
-              [mod]: {}
+            if (isDefaultMod) {
+              modState = model.getState(DEFAULT_MODULE)
+              setTarget = filterState = {}
+            } else {
+              modState = model.getState(mod)[mod]
+              filterState = {
+                [mod]: {}
+              }
+              setTarget = filterState[mod]
             }
+
             partialStateMap[mod].forEach(path => {
               let value = getObjByPath(modState, path)
-              Object.assign(modelState, setObjByPath(filterState[mod], path, value, true))
+              setObjByPath(setTarget, path, value, true)
             })
+
             Object.assign(modelState, filterState)
           }
 
@@ -213,7 +258,7 @@ export default class Modello {
         models.forEach(function (option) {
           let model = getModel(option.model)
           let modelName = model.modelName
-          let { allStates } = parseOptionStates(option)
+          let { allStates } = parseOptionStates(option.states)
 
           let showMutateWarning = function () {
             const isFirstMutate = arguments.length === 1
@@ -233,7 +278,7 @@ export default class Modello {
           // handle watch
           model.eachStateWatch(allStates, function (state, watchEach) {
             let statePath = modelName
-            if (state !== 'default') {
+            if (state !== DEFAULT_MODULE) {
               statePath += '.' + state
             }
 
