@@ -4,3 +4,4 @@ npm-debug.log
 docs/_book
 demo
 dist
+.vscode
