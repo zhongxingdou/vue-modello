@@ -220,7 +220,7 @@ export default class Modello {
             if (isFirstMutate) return
 
             if (!writerState.isVModelDirWriting && !writerState.isMutationWriting) {
-              console.warn('[vue-modello] Do not mutate modello state outside mutation handlers.!')
+              console.warn('[vue-modello] Do not mutate modello state outside mutation handlers!')
             }
           }
 
