@@ -5,3 +5,4 @@ docs/_book
 demo
 dist
 .vscode
+coverage
