@@ -64,37 +64,48 @@ export function setObjByPath (obj, path, val, createPath) {
   }
 }
 
-export function parseOptionStates (states = []) {
-  let simpleStates = []
-  let partialStates = []
-  let allStates = []
-  let partialStateMap = {}
-
-
-  simpleStates = states.filter(s => {
-    let isString = typeof(s) === 'string'
-    return isString && !s.includes('.')
-  })
+export function parseStatesOption (states = []) {
+  let fullInjectModules = []
+  let needInjectModules = []
+  let partialInjectPathesMap = {}
+  let statePathes = []
 
   states.forEach(s => {
-    let sType = typeof(s)
-    if (sType === 'object') {
-      Object.assign(partialStateMap, s)
-    } else if(sType === 'string' && s.includes('.')) {
-      let pathes = s.split('.')
-      let moduleName = pathes.shift()
-      let moduleStates = partialStateMap[moduleName] || (partialStateMap[moduleName]=[])
+    let type = typeof(s)
+    if (type === 'string') {
+      if (s.includes('.')) {
+        statePathes.push(s)
+      } else {
+        fullInjectModules.push(s)
+      }
+    } else if (s && type === 'object') {
+      Object.assign(partialInjectPathesMap, s)
+    }
+  })
+
+  statePathes.forEach(s => {
+    let pathes = s.split('.')
+    let moduleName = pathes.shift()
+
+    if (!fullInjectModules.includes(moduleName)) {
+      let moduleStates = partialInjectPathesMap[moduleName] || (partialInjectPathesMap[moduleName]=[])
       moduleStates.push(pathes.join('.'))
     }
   })
 
-  partialStates = Object.keys(partialStateMap)
-  allStates = simpleStates.concat(partialStates)
+  Object.keys(partialInjectPathesMap).forEach(module => {
+    if (fullInjectModules.includes(module)) {
+      delete partialInjectPathesMap[module]
+    } else {
+      needInjectModules.push(module)
+    }
+  })
+
+  needInjectModules = needInjectModules.concat(fullInjectModules)
 
   return {
-    allStates,
-    simpleStates,
-    partialStates,
-    partialStateMap
+    needInjectModules,
+    fullInjectModules,
+    partialInjectPathesMap
   }
 }
