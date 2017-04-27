@@ -46,7 +46,13 @@ export default function (getModel) {
           let { model, actions, mutations=[], getters={}, actionAlias={}, mutationAlias={} } = modelOption
 
           model = getModel(model)
-          let states = parseOptionStates(modelOption.states).allStates
+          let states = modelOption.states
+          if (!modelOption.states) {
+            states = [DEFAULT_MODULE]
+          } else {
+            states = parseOptionStates(modelOption.states).allStates
+          }
+          
           let modelName = model.modelName
 
           // inject computed
@@ -138,7 +144,8 @@ export default function (getModel) {
         models.forEach((option) => {
           let model = getModel(option.model)
           let modelState = result[model.modelName] = {}
-          let { simpleStates, partialStateMap } = parseOptionStates(option.states)
+          let optionStates = option.states || [DEFAULT_MODULE]
+          let { simpleStates, partialStateMap } = parseOptionStates(optionStates)
 
           // states: [{newPage: ['workorder', 'xxxx'}]
           for(let mod in partialStateMap) {
@@ -181,7 +188,8 @@ export default function (getModel) {
         models.forEach(function (option) {
           let model = getModel(option.model)
           let modelName = model.modelName
-          let { allStates } = parseOptionStates(option.states)
+          let optionStates = option.states || [DEFAULT_MODULE]
+          let { allStates } = parseOptionStates(optionStates)
 
           let showMutateWarning = function () {
             const isFirstMutate = arguments.length === 1

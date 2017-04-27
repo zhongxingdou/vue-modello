@@ -72,29 +72,25 @@ export function parseOptionStates (states = []) {
   let allStates = []
   let partialStateMap = {}
 
-  if (states.length === 0) {
-    simpleStates.unshift(DEFAULT_MODULE)
-  } else {
-    simpleStates = states.filter(s => {
-      let isString = typeof(s) === 'string'
-      return isString && !s.includes('.')
-    })
 
-    states.forEach(s => {
-      let sType = typeof(s)
-      if (sType === 'object') {
-        Object.assign(partialStateMap, s)
-      } else if(sType === 'string' && s.includes('.')) {
-        let pathes = s.split('.')
-        let moduleName = pathes.shift()
-        let moduleStates = partialStateMap[moduleName] || (partialStateMap[moduleName]=[])
-        moduleStates.push(pathes.join('.'))
-      }
-    })
+  simpleStates = states.filter(s => {
+    let isString = typeof(s) === 'string'
+    return isString && !s.includes('.')
+  })
 
-    partialStates = Object.keys(partialStateMap)
-  }
+  states.forEach(s => {
+    let sType = typeof(s)
+    if (sType === 'object') {
+      Object.assign(partialStateMap, s)
+    } else if(sType === 'string' && s.includes('.')) {
+      let pathes = s.split('.')
+      let moduleName = pathes.shift()
+      let moduleStates = partialStateMap[moduleName] || (partialStateMap[moduleName]=[])
+      moduleStates.push(pathes.join('.'))
+    }
+  })
 
+  partialStates = Object.keys(partialStateMap)
   allStates = simpleStates.concat(partialStates)
 
   return {
