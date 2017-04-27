@@ -77,8 +77,13 @@ export default class Modello {
     this._ = {
       store: {},
       installed: false,
-      model:createModel()
+      model:createModel(),
+      vuePlugin: this._makeVuePlugin()
     }
+  }
+
+  get vuePlugin() {
+    return this._.vuePlugin
   }
 
   get Model() {
@@ -88,7 +93,7 @@ export default class Modello {
   install (vue) {
     if (this._.installed) return
 
-    vue.mixin(this.vueMixin())
+    vue.mixin(this.vuePlugin)
     vue.use(hackVueModelDirPlugin)
 
     this._.installed = true
@@ -123,7 +128,7 @@ export default class Modello {
     return this.Model.on(...args)
   }
 
-  vueMixin () {
+  _makeVuePlugin () {
     let getModel = this.getModel.bind(this)
     return {
       init () {
@@ -136,7 +141,7 @@ export default class Modello {
 
         let existsDefaultModel = false
         models.forEach((modelOption) => {
-          let { model, actions={}, mutations={}, getters={} } = modelOption
+          let { model, actions, mutations=[], getters={}, actionAlias={}, mutationAlias={} } = modelOption
 
           model = getModel(model)
           let states = parseOptionStates(modelOption.states).allStates
@@ -160,22 +165,38 @@ export default class Modello {
             }
 
             // inject actions
-            if (actions) {
-              let stateActions = model.getStateActions(state)
-              let injectActions = actions[state] || Object.keys(stateActions)
+            // all mudule actions will auto inject if no givens
+            if (actions !== false) {
+              let stateAllActions = Object.keys(model.getStateActions(state))
+              let injectActions = stateAllActions
+
+              if (Array.isArray(actions)) {
+                injectActions = actions.filter(_ => stateAllActions.includes(_))
+              } else if(typeof actions === 'object' && actions.hasOwnProperty(state)) {
+                let stateActions = actions[state]
+                if(Array.isArray(stateActions)) {
+                  injectActions = stateActions.filter(_ => stateAllActions.includes(_))
+                } else if(stateActions === false) {
+                  injectActions = []
+                }
+              }
+ 
               if (injectActions.length) {
                 let dispatch = makeActionDispatcher(vm, model, state, statePath)
 
                 injectActions.forEach(action => {
-                  methods[action] = dispatch.bind(null, action)
+                  let methodName = actionAlias[action] || action
+                  methods[methodName] = dispatch.bind(null, action)
                 })
               }
             }
 
             // inject mutations
-            if (mutations) {
+            // mutation wont auto inject if no given
+            if (Array.isArray(mutations) && mutations.length) {
               let stateMutations = model.getStateMutations(state)
-              let injectMutations = mutations[state] || Object.keys(stateMutations)
+              let stateMutationsNames = Object.keys(stateMutations)
+              let injectMutations = mutations.filter(_ => stateMutationsNames.includes(_))
 
               if (injectMutations.length) {
                 let stateCommit = function (...args) {
@@ -183,7 +204,8 @@ export default class Modello {
                 }
                 injectMutations.forEach(mutation => {
                   if (!methods.hasOwnProperty(mutation)) {
-                    methods[mutation] = stateCommit.bind(null, mutation)
+                    let methodName = mutationAlias[mutation] || mutation
+                    methods[methodName] = stateCommit.bind(null, mutation)
                   }
                 })
               }
