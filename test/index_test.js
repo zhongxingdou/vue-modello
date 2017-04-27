@@ -65,6 +65,8 @@ describe('Modello', function () {
     const subModAction2 = function () {}
     const subModMutation1 = function () {}
     const subModMutation2 = function () {}
+    const foo2 = {}
+    const root2 = {}
 
     let model = {
       modelName: 'TestModel',
@@ -96,9 +98,9 @@ describe('Modello', function () {
             foo: {
               bar: rootFooBarVal
             },
-            foo2: {}
+            foo2
           },
-          root2: {}
+          root2
         }
       },
 
@@ -127,6 +129,26 @@ describe('Modello', function () {
       should(vm.TestModel.subMod.baz.msg).equal(moduleBazVal)
       should(vm.TestModel.root2).be.undefined()
       should(vm.TestModel.root.foo2).be.undefined()
+    })
+
+    it('states option item be an object that defined module sub state pathes should normal', function () {
+      let vm = new Vue({
+        mixins: [ modello.vuePlugin ],
+        modello: [{
+          model: 'TestModel',
+          states: [{
+            default: ['root.foo2', 'root2'],
+            subMod: ['baz.msg']
+          }]
+        }]
+      })
+
+      should(vm.TestModel.root.foo).be.undefined()
+
+      should(vm.TestModel.root2).be.equal(root2)
+      should(vm.TestModel.root.foo2).be.equal(foo2)
+
+      should(vm.TestModel.subMod.baz.msg).be.equal(moduleBazVal)
     })
 
     it('getters should normal', function () {
@@ -192,8 +214,6 @@ describe('Modello', function () {
           should(vm.$model.subModAction1).be.a.Function()
           should(vm.$model.subModAction2).be.undefined()
         })
-
-
 
         it('should not inject given actions if its belongs module state not given', function () {
           let vm = new Vue({
