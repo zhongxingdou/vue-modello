@@ -10,9 +10,11 @@
     "dist"
   ],
   "scripts": {
+    "eslint": "eslint src test",
+    "build-test": "rollup -c build/rollup.test-config.js",
     "test": "mocha",
     "build": "rollup -c build/rollup.config.js",
-    "build-test": "rollup -c build/rollup.test-config.js",
+    "prebuild-test": "npm run eslint",
     "pretest": "npm run build-test",
     "prebuild": "npm test",
     "prepublish": "npm run build",
@@ -30,6 +32,7 @@
   "author": "zhongxingdou@gmail.com",
   "license": "ISC",
   "devDependencies": {
+    "babel-eslint": "^7.2.3",
     "babel-plugin-syntax-object-rest-spread": "^6.8.0",
     "babel-plugin-transform-object-rest-spread": "^6.8.0",
     "babel-preset-es2015": "^6.9.0",
@@ -37,6 +40,7 @@
     "babel-register": "^6.9.0",
     "babelrc-rollup": "^1.1.0",
     "better-assert": "^1.0.2",
+    "eslint": "^3.19.0",
     "istanbul": "^0.4.5",
     "mocha": "^3.2.0",
     "rollup": "^0.34.7",
