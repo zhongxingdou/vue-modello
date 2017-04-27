@@ -1,2 +1,2 @@
-import Modello from './ModelMan'
+import Modello from './Modello'
 export default Modello

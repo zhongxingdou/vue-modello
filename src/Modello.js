@@ -1,5 +1,5 @@
 import { makeActionContext } from './util'
-import hackVueModelDirPlugin from './hackVueModelDirPlugin'
+import modelDirective from './modelDirective'
 import { createModel } from './Model'
 import makeVueMixin from './makeVueMixin'
 
@@ -13,8 +13,8 @@ export default class Modello {
     }
   }
 
-  static VModelDiretiveWriteState () {
-    return hackVueModelDirPlugin
+  static modelDirective () {
+    return modelDirective
   }
 
   get vuePlugin() {
