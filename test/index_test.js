@@ -5,9 +5,10 @@ import Modello from '../src/index'
 import Vue from 'vue'
 
 describe('Modello', function () {
-  let modello = new Modello()
+
 
   it('should reg() normal', function () {
+    let modello = new Modello()
     let modelName = 'A'
     let A = {
       modelName: modelName
@@ -22,6 +23,7 @@ describe('Modello', function () {
   })
 
   it('should unReg() normal', function () {
+    let modello = new Modello()
     let modelName = 'A'
     let A = {
       modelName: modelName
@@ -31,6 +33,18 @@ describe('Modello', function () {
     modello.unReg(modelName)
 
     should(modello.getModel(modelName)).be.undefined()
+  })
+
+  it('should use() install plugin normal', function () {
+    let modello = new Modello()
+    let install = sinon.spy()
+    let plugin = { install }
+    let installArgs = [{}, {}]
+    
+    modello.use(plugin, ...installArgs)
+
+    install.calledWithMatch(modello, ...installArgs).should.be.true()
+    install.calledOnce.should.be.true()
   })
 
   it('on() normal', function () {
@@ -55,6 +69,8 @@ describe('Modello', function () {
   })
 
   describe('modello option', function () {
+    let modello = new Modello()
+    
     const rootFooBarVal = 'rootFooBar'
     const moduleBazVal = 'moduleBaz'
     const defaultModAction1 = function () {}

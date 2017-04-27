@@ -34,7 +34,7 @@ export default class Modello {
   }
 
   getModel (model) {
-    return typeof model === 'string' ? this._.store[model] : model
+    return this._.store[model]
   }
 
   use (plugin, ...args) {
