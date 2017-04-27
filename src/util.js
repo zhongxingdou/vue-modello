@@ -1,7 +1,5 @@
 import writerState from './writerState'
 
-const DEFAULT_MODULE = 'default'
-
 export function makeActionContext (mutations, state, dispatch) {
   let commit = makeCommitFn(state, mutations)
   return {
