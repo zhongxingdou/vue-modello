@@ -2,7 +2,9 @@
   "name": "vue-modello",
   "version": "2.5.0",
   "description": "vue model",
-  "main": "dist/vueModello.js",
+  "main": "dist/vue-modello.js",
+  "module": "dist/vue-modello.mjs",
+  "jsnext:main": "dist/vue-modello.mjs",
   "files": [
     "src",
     "dist"
@@ -10,6 +12,10 @@
   "scripts": {
     "test": "mocha",
     "build": "rollup -c build/rollup.config.js",
+    "build-test": "rollup -c build/rollup.test-config.js",
+    "pretest": "npm run build-test",
+    "prebuild": "npm test",
+    "prepublish": "npm run build",
     "docs": "gitbook serve",
     "docsbuild": "bash ./build/update-docs.sh"
   },
@@ -31,9 +37,11 @@
     "babel-register": "^6.9.0",
     "babelrc-rollup": "^1.1.0",
     "better-assert": "^1.0.2",
+    "istanbul": "^0.4.5",
     "mocha": "^3.2.0",
     "rollup": "^0.34.7",
     "rollup-plugin-babel": "^2.5.0",
+    "rollup-plugin-istanbul": "^1.1.0",
     "should": "^9.0.0",
     "sinon": "^1.17.4",
     "vue": "^1.0.28"
