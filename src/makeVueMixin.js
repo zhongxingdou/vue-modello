@@ -1,4 +1,11 @@
-import {parseOptionStates, makeCommitFn, getObjByPath, setObjByPath} from './util'
+import {
+  makeActionContext,
+  parseOptionStates,
+  makeCommitFn,
+  getObjByPath,
+  setObjByPath
+} from './util'
+
 import writerState from './writerState'
 
 const DEFAULT_MODULE = 'default'
@@ -45,7 +52,6 @@ export default function (getModel) {
           // inject computed
           if (getters) {
             for(let computedName in getters) {
-              let stateName = computedName.split('.')[0]
               computed[computedName] = new Function('return this.' + modelName + '.' + getters[computedName])
             }
           }

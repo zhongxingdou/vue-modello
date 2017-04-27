@@ -1,4 +1,3 @@
-import { makeActionContext } from './util'
 import modelDirective from './modelDirective'
 import { createModel } from './Model'
 import makeVueMixin from './makeVueMixin'
@@ -29,7 +28,7 @@ export default class Modello {
     if (this._.installed) return
 
     vue.mixin(this.vuePlugin)
-    vue.use(hackVueModelDirPlugin)
+    vue.use(modelDirective)
 
     this._.installed = true
   }
