@@ -106,6 +106,9 @@ AppMedello.reg(Student)
 
 export default AppMedello
 ```
+### use model
+```src/index.js
+import './models/index'
 
 ### use model in edit page
 ```javascript
