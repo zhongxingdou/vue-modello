@@ -1,99 +1,114 @@
 import {
-  makeActionContext,
   parseStatesOption,
-  makeCommitFn,
   getObjByPath,
-  setObjByPath
+  setObjByPath,
+  makeError
 } from './util'
 
 import writerState from './writerState'
 
 const DEFAULT_MODULE = 'default'
 
-function makeActionDispatcher(vm, model, state, statePath) {
-  let mutations = model.getStateMutations(state)
-
-  return function dispatch(action) {
-    let context = makeActionContext(
-      mutations,
-      vm.$get(statePath),
-      dispatch
-    )
-
-    let args = Array.from(arguments)
-    args.shift()
-    args.unshift(context)
-
-    let result = model.applyAction(state, action, args)
-    if (result && result.then) {
-      return result
-    }
-  }
-}
+const DOT = '.'
 
 export default function (getModel) {
   return {
     init() {
       let vm = this
-      let config = this.$options.modello
-      let computed = this.$options.computed || (this.$options.computed = {})
+      let config = vm.$options.modello
       if (!config) return
 
       let models = [].concat(config)
 
+      let computed = vm.$options.computed
+      if (!computed) {
+        computed = vm.$options.computed = {}
+      }
+
       let existsDefaultModel = false
+
       models.forEach((modelOption) => {
-        let { model, actions, mutations = [], getters = {}, actionAlias = {}, mutationAlias = {} } = modelOption
+        let {
+          model,
+          actions,
+          mutations = [],
+          getters = {},
+          actionAlias = {},
+          mutationAlias = {}
+        } = modelOption
 
-        model = getModel(model)
-        let states = modelOption.states
-        if (!modelOption.states) {
-          states = [DEFAULT_MODULE]
-        } else {
-          states = parseStatesOption(modelOption.states).needInjectModules
+        let modelName = model
+        model = getModel(modelName)
+
+        if (model === undefined) {
+          throw makeError(`model "${modelName}" unregistered!`)
         }
-
-        let modelName = model.modelName
 
         // inject computed
         if (getters) {
           for (let computedName in getters) {
-            computed[computedName] = new Function('return this.' + modelName + '.' + getters[computedName])
+            let path = getters[computedName]
+            computed[computedName] =
+              new Function(
+                `return this.${modelName}.${path}`
+              )
           }
         }
-        // actionMethod ({commit(mutation, ...args), state, dispatch(action, ...args)}, ...args)
-        // mutationMethod (state, ...args)
-        // inject actions and mutations as Vue method
+
+        let needInjectModules = modelOption.states
+        if (!modelOption.states) {
+          needInjectModules = [DEFAULT_MODULE]
+        } else {
+          needInjectModules =
+            parseStatesOption(modelOption.states).needInjectModules
+        }
+
+        // inject actions and mutations to vm.$model
         let methods = {}
-        states.forEach(function (state) {
+        needInjectModules.forEach(function (moduleName) {
+          let module = model.getModule(moduleName)
           let statePath = modelName
-          if (state !== DEFAULT_MODULE) {
-            statePath += '.' + state
+          if (moduleName !== DEFAULT_MODULE) {
+            statePath += DOT + moduleName
           }
 
-          // inject actions
-          // all mudule actions will auto inject if no givens
-          if (actions !== false) {
-            let stateAllActions = Object.keys(model.getStateActions(state))
-            let injectActions = stateAllActions
+          let getState = function () {
+            return vm.$get(statePath)
+          }
+          // all mudule actio
 
-            if (Array.isArray(actions)) {
-              injectActions = actions.filter(_ => stateAllActions.includes(_))
-            } else if (typeof actions === 'object' && actions.hasOwnProperty(state)) {
-              let stateActions = actions[state]
-              if (Array.isArray(stateActions)) {
-                injectActions = stateActions.filter(_ => stateAllActions.includes(_))
-              } else if (stateActions === false) {
-                injectActions = []
-              }
+          // inject actionsns will auto inject if no givens
+          if (actions !== false) {
+            let modelActions = model.getActions()
+            let injectActions = []
+
+            let muduleActions = Array.isArray(actions)
+              ? actions : actions[moduleName]
+
+            let type = Array.isArray(muduleActions)
+              ? 'array' : typeof(muduleActions)
+
+            switch(type) {
+              case 'array':
+                injectActions = actions
+                break
+              case 'boolean':
+                if (muduleActions === false) {
+                  injectActions = []
+                }
+                break
             }
 
-            if (injectActions.length) {
-              let dispatch = makeActionDispatcher(vm, model, state, statePath)
+            injectActions = injectActions.filter(_ => modelActions.includes(_))
 
+            if (injectActions.length) {
               injectActions.forEach(action => {
                 let methodName = actionAlias[action] || action
-                methods[methodName] = dispatch.bind(null, action)
+                if (methods.hasOwnProperty(methodName)) {
+                  throw makeError('exists $model.' + methodName + ', please alias it.')
+                } else {
+                  methods[methodName] = model.dispatch.bind(model, getState, action)
+                }
               })
             }
           }
@@ -101,18 +116,16 @@ export default function (getModel) {
           // inject mutations
           // mutation wont auto inject if no given
           if (Array.isArray(mutations) && mutations.length) {
-            let stateMutations = model.getStateMutations(state)
-            let stateMutationsNames = Object.keys(stateMutations)
-            let injectMutations = mutations.filter(_ => stateMutationsNames.includes(_))
+            let moduleMutations = module.getMutations()
+            let injectMutations = mutations.filter(_ => moduleMutations.includes(_))
 
             if (injectMutations.length) {
-              let stateCommit = function (...args) {
-                makeCommitFn(vm.$get(statePath), stateMutations)(...args)
-              }
               injectMutations.forEach(mutation => {
-                if (!methods.hasOwnProperty(mutation)) {
-                  let methodName = mutationAlias[mutation] || mutation
-                  methods[methodName] = stateCommit.bind(null, mutation)
+                let methodName = mutationAlias[mutation] || mutation
+                if (methods.hasOwnProperty(methodName)) {
+                  throw makeError('exists $model.' + methodName + ', please alias it.')
+                } else {
+                  methods[methodName] = model.commit.bind(model, getState, mutation)
                 }
               })
             }
@@ -125,12 +138,13 @@ export default function (getModel) {
           vm.$model = Object.assign({}, methods)
         } else {
           for (let m in methods) {
-            if (!vm.$model[m]) {
+            if (vm.$model.hasOwnProperty(m)) {
+              throw makeError('exists $model.' + m + ', please alias it.')
+            } else {
               vm.$model[m] = methods[m]
             }
           }
         }
-        vm.$model[modelName] = methods
       })
     },
 
@@ -148,22 +162,22 @@ export default function (getModel) {
         let { fullInjectModules, partialInjectPathesMap } = parseStatesOption(optionStates)
 
         // states: [{newPage: ['workorder', 'xxxx'}]
-        for (let mod in partialInjectPathesMap) {
-          let isDefaultMod = mod === DEFAULT_MODULE
+        for (let module in partialInjectPathesMap) {
+          let isDefaultMod = module === DEFAULT_MODULE
           let modState, filterState, setTarget
 
           if (isDefaultMod) {
-            modState = model.getState(DEFAULT_MODULE)
+            modState = model.getDefaultModuleState()
             setTarget = filterState = {}
           } else {
-            modState = model.getState(mod)[mod]
+            modState = model.getModuleState(module)
             filterState = {
-              [mod]: {}
+              [module]: {}
             }
-            setTarget = filterState[mod]
+            setTarget = filterState[module]
           }
 
-          partialInjectPathesMap[mod].forEach(path => {
+          partialInjectPathesMap[module].forEach(path => {
             let value = getObjByPath(modState, path)
             setObjByPath(setTarget, path, value, true)
           })
@@ -171,7 +185,7 @@ export default function (getModel) {
           Object.assign(modelState, filterState)
         }
 
-        Object.assign(modelState, model.getState(fullInjectModules))
+        Object.assign(modelState, model.getStateOfMutations(fullInjectModules))
       })
 
       return result
@@ -213,23 +227,14 @@ export default function (getModel) {
             statePath += '.' + state
           }
 
-          let dispatch = makeActionDispatcher(vm, model, state, statePath)
-
           let statePrefix = statePath + '.'
           let len = statePrefix.length
 
-          watchEach(function (path, handler, option) {
+          watchEach(function (path, action, option) {
             let listenOrWatch = vm.$listen ? '$listen' : '$watch'
             let watchPath = path === '$state' ? statePath : statePrefix + path
 
             vm[listenOrWatch](watchPath, function (val, oldVal, path) {
-              let mutations = model.getStateMutations(state)
-              let context = makeActionContext(
-                mutations,
-                vm.$get(statePath),
-                dispatch
-              )
-
               if (path) {
                 path = {
                   absolute: path.absolute.substr(len),
@@ -237,7 +242,11 @@ export default function (getModel) {
                 }
               }
 
-              handler(context, val, oldVal, path)
+              let getState = () => {
+                return this.$get(statePath)
+              }
+
+              model.dispatch(getState, action, val, oldVal, path)
             }, option)
           }) // end for stateWatch
         }) // end eachWatch

@@ -1,29 +1,5 @@
-import writerState from './writerState'
-
-export function makeActionContext (mutations, state, dispatch) {
-  let commit = makeCommitFn(state, mutations)
-  return {
-    state,
-    dispatch,
-    commit
-  }
-}
-
-export function makeCommitFn (state, mutations) {
-  return function (mutationName) {
-    if (mutations.hasOwnProperty(mutationName)) {
-      let args = Array.from(arguments)
-      args.shift() // mutation name
-      args.unshift(state)
-
-      try {
-        writerState.isMutationWriting = true
-        mutations[mutationName].apply(null, args)
-      } finally {
-        writerState.isMutationWriting = false
-      }
-    }
-  }
+export function makeError(msg) {
+  return new Error('[vue-modello]' + msg)
 }
 
 export function getObjByPath (obj, path) {

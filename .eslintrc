@@ -5,6 +5,10 @@
     "node": true,
     "mocha": true
   },
+  "globals": {
+    "Symbol": true,
+    "Map": true
+  },
   "rules": {
     "no-console": 0
   }

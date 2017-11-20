@@ -5,8 +5,6 @@ import Modello from '../src/index'
 import Vue from 'vue'
 
 describe('Modello', function () {
-
-
   it('should reg() normal', function () {
     let modello = new Modello()
     let modelName = 'A'
@@ -70,7 +68,7 @@ describe('Modello', function () {
 
   describe('modello option', function () {
     let modello = new Modello()
-    
+
     const rootFooBarVal = 'rootFooBar'
     const moduleBazVal = 'moduleBaz'
     const defaultModAction1 = function () {}

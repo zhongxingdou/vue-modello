@@ -1,4 +1,6 @@
-import { makeActionContext } from './util'
+import writerState from './writerState'
+
+const DEFAULT_MODULE = 'default'
 
 export function createModel () {
   let eventMap = {}
@@ -12,10 +14,19 @@ export function createModel () {
         mutations: {},
         watch: {},
         actionModMap: {},
-        mutationModMap: {}
+        mutationModMap: {},
+        moduleNames: [DEFAULT_MODULE]
       }
-      let { mixins } = option
-      let { actions, actionModMap, mutationModMap, mutations } = _
+
+      let { modules, mixins } = option
+      mixins = {...mixins, ...modules}
+
+      let {
+        actions,
+        actionModMap,
+        mutationModMap,
+        mutations
+      } = _
 
       // mix module
       let types = ['actions', 'mutations', 'watch']
@@ -28,6 +39,7 @@ export function createModel () {
 
         // mix naming modules
         for(let name in mixins) {
+          _.moduleNames.push(name)
           let mod = mixins[name]
           if (!mod.hasOwnProperty(type)) mod[type] = {}
           _[type][name] = mod[type]
@@ -56,56 +68,58 @@ export function createModel () {
         })
       }
 
-      _.defaultStateKeys = []
-      let defaultState = this.getDefaultState()
-      if (typeof(defaultState) === 'object' && defaultState) {
-        _.defaultStateKeys = Object.keys(defaultState)
-      }
-
       Model.fire('created', this)
-    }
-
-    get defaultStateKeys () {
-      return this._.defaultStateKeys
     }
 
     get modelName () {
       return this._.option.modelName
     }
 
-    getDefaultState () {
+    get moduleNames () {
+      return this._.moduleNames.concat([])
+    }
+
+    getDefaultModuleState () {
       let _state = this._.option.state
       return _state ? _state() : undefined
     }
 
-    getModState (mod) {
-      if (mod === 'default') {
-        return this.getDefaultState()
+    getModuleState (module) {
+      if (module === DEFAULT_MODULE) {
+        return this.getDefaultModuleState()
       }
 
       let mixins = this._.option.mixins
-      let modState = mixins[mod].state
-      return modState ? modState() : undefined
+      let moduleState = mixins[module].state
+      return moduleState ? moduleState() : undefined
     }
 
     // wrap all module state() in state
     state () {
-      let result = this.getDefaultState()
+      let result = this.getDefaultModuleState()
       let mixins = this._.option.mixins
 
-      for(let mod in mixins) {
-        let modState = this.getModState(mod)
-        if (modState !== undefined) {
+      for(let module in mixins) {
+        let moduleState = this.getModuleState(module)
+        if (moduleState !== undefined) {
           if (!result) result = {}
-          result[mod] = modState
+          result[module] = moduleState
         }
       }
 
       return result
     }
 
-    getStateActions (state) {
-      return this._.actions[state]
+    getActionModule (action) {
+      return this._.actionModMap[action]
+    }
+
+    getMutationModule (mutation) {
+      return this._.mutationModMap[mutation]
+    }
+
+    getMuduleActions (module) {
+      return this._.actions[module]
     }
 
     eachStateWatch (states, handle) {
@@ -118,126 +132,68 @@ export function createModel () {
         handle(state, function (eachWatcher) {
           for(let path in stateWatch) {
             let val = stateWatch[path]
-            let handler = null
-            let option = {}
 
-            if (typeof val === 'function') {
-              handler = val
-            } else { // object
-              option = {...val}
-              handler = option.handler
-              delete option.handler
-            }
+            let option = {...val}
+            delete option.handler
 
-            eachWatcher(path, handler, option)
+            eachWatcher(path, val.handler, option)
           }
         })
       }
     }
 
-    applyAction (state, action, args) {
-      if (state !== 'default' && !this._.actions[state][action]) {
-        state = 'default'
-      }
-
-      let result = this._.actions[state][action].apply(null, args)
-      if (result && result.then) {
-        return result
-      }
+    applyAction (action, args) {
+      let module = this.getActionModule(action)
+      // todo: warnig if action be undefined
+      return this.getMuduleActions[module][action].apply(null, args)
     }
 
-    commitMutation (modStateName, mutation, args) {
-      if (state !== 'default' && !this._.mutations[state][mutation]) {
-        state = 'default'
-      }
-
-      let state = this.getState(modStateName)
-      args.unshift(state)
-
-      this._.mutations[state][mutation].apply(null, args)
-    }
-
-    commit (mutation, ...args) {
-      let modStateName = this._.mutationModMap[mutation]
-      this.commitMutation(modStateName, mutation, args)
-    }
-
-    dispatch (action) {
-      let stateKey = this._.actionModMap[action]
-      let state = this.getState(stateKey)
-
-      let context = makeActionContext(
-        this.getStateMutations(stateKey),
-        state[stateKey],
-        this.dispatch.bind(this)
-      )
-
-      const BIZ_PARAM_INDEX = 1
-      let args = Array.from(arguments).slice(BIZ_PARAM_INDEX)
-      args.unshift(context)
-
-      let result = this.applyAction(stateKey, action, args)
-      if(result && result.then) {
-        return result.then(() => {
-          return state
-        })
+    commit (getState, mutation, ...args) {
+      let module = this.getMutationModule(mutation)
+      try {
+        writerState.isMutationWriting = true
+        // todo: warnig if mutation be undefined
+        this.getModuleMutations(module)[mutation].call(null, getState(), ...args)
+      } finally {
+        writerState.isMutationWriting = false
       }
     }
 
-    dispatchAll (fn) {
-      const BIZ_PARAM_INDEX = 1
-
-      let callers = []
-      let subStates = new Set()
-      let actionModMap = this._.actionModMap
-
-      function dispatch (action) {
-        let stateKey = actionModMap[action]
-        let args = Array.from(arguments).slice(BIZ_PARAM_INDEX)
-
-        callers.push({ stateKey, action, args })
-        subStates.add(stateKey)
+    dispatch (getState, action, ...args) {
+      let context = {
+        state: getState(),
+        commit: this.commit.bind(this, getState),
+        dispatch: this.dispatch.bind(this, getState)
       }
-
-      fn(dispatch)
-
-      let state = this.getState([...subStates])
-
-      return Promise.all(callers.map(({ stateKey, action, args }) => {
-        let context = makeActionContext(
-          this.getStateMutations(stateKey),
-          state[stateKey],
-          this.dispatch.bind(this)
-        )
-        args.unshift(context)
-
-        return this.applyAction(stateKey, action, args)
-      })).then(() => { return state })
+      return this.applyAction(action, context, ...args)
     }
 
-    getStateMutations (state) {
+    getModuleMutations (state) {
       return this._.mutations[state]
     }
 
-    getState (states) {
-      if (!states) {
+    getStateOfMutations (mutations) {
+      if (!mutations) {
         return this.state()
       }
 
-      if (!Array.isArray(states)){
-        states = [states]
+      if (!Array.isArray(mutations)){
+        mutations = [mutations]
       }
 
-      return states.reduce((result, mod) => {
-        let modState = this.getModState(mod)
-        if (modState !== undefined) {
+      return mutations.reduce((result, module) => {
+        let moduleState = this.getModuleState(module)
+
+        if (moduleState !== undefined) {
           if (!result) result = {}
-          if (mod === 'default') {
-            Object.assign(result, modState)
+
+          if (module === DEFAULT_MODULE) {
+            Object.assign(result, moduleState)
           } else {
-            result[mod] = modState
+            result[module] = moduleState
           }
         }
+
         return result
       }, undefined)
     }
